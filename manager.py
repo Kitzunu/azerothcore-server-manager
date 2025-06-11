@@ -6,6 +6,8 @@ import psutil
 import threading
 import time
 import configparser
+import winsound
+import datetime
 
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
 
@@ -45,6 +47,9 @@ class AzerothManager:
                 'world_log_file': r'D:\build\bin\RelWithDebInfo\Server.log',
                 'auth_log_file': r'D:\build\bin\RelWithDebInfo\Auth.log',
             }
+            self.config['General'] = {
+                'restart_worldserver_on_crash': True,
+            }
             with open(SETTINGS_FILE, 'w') as configfile:
                 self.config.write(configfile)
         else:
@@ -54,12 +59,14 @@ class AzerothManager:
         self.AUTH_PATH = self.config['Paths']['authserver']
         self.WORLD_LOG_FILE = self.config['Paths']['world_log_file']
         self.AUTH_LOG_FILE = self.config['Paths']['auth_log_file']
+        self.RESTART_WORLDSERVER_ON_CRASH = self.config.getboolean('General', 'restart_worldserver_on_crash')
 
     def save_settings(self):
         self.config['Paths']['worldserver'] = self.WORLD_PATH
         self.config['Paths']['authserver'] = self.AUTH_PATH
         self.config['Paths']['world_log_file'] = self.WORLD_LOG_FILE
         self.config['Paths']['auth_log_file'] = self.AUTH_LOG_FILE
+        self.config['General']['restart_worldserver_on_crash'] = self.RESTART_WORLDSERVER_ON_CRASH
         with open(SETTINGS_FILE, 'w') as configfile:
             self.config.write(configfile)
 
@@ -213,16 +220,73 @@ class AzerothManager:
         auth_log_entry.grid(row=3, column=1, padx=5, pady=5)
         tk.Button(settings_win, text="Browse", command=lambda: browse(auth_log_entry)).grid(row=3, column=2, padx=5, pady=5)
 
+        tk.Label(settings_win, text="Restart Worldserver on crash: (1/0)", anchor="w", justify="left").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.RESTART_WORLDSERVER_ON_CRASH)
+        restart_var.grid(row=4, column=1, padx=5, pady=5)
+
         def save():
             self.WORLD_PATH = world_entry.get()
             self.AUTH_PATH = auth_entry.get()
             self.WORLD_LOG_FILE = world_log_entry.get()
             self.AUTH_LOG_FILE = auth_log_entry.get()
+            self.RESTART_WORLDSERVER_ON_CRASH = restart_var.get()
             self.save_settings()
             settings_win.destroy()
             self.log_manager("🔴 Settings saved.\n")
 
-        tk.Button(settings_win, text="Save", command=save).grid(row=4, column=1, pady=10)
+        tk.Button(settings_win, text="Save", command=save).grid(row=5, column=1, pady=10)
+
+    def start_authserver(self):
+        # --- Start authserver ---
+        self.auth_process = subprocess.Popen(
+            [self.AUTH_PATH],
+            cwd=os.path.dirname(self.AUTH_PATH),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
+        )
+
+        # Start threads to read authserver stdout/stderr
+        threading.Thread(
+            target=self.read_stream,
+            args=(self.auth_process.stdout, self.log_auth),
+            daemon=True
+        ).start()
+
+        threading.Thread(
+            target=self.read_stream,
+            args=(self.auth_process.stderr, self.log_auth),
+            daemon=True
+        ).start()
+
+    def start_worldserver(self):
+        # --- Start worldserver ---
+        self.world_process = subprocess.Popen(
+            [self.WORLD_PATH],
+            cwd=os.path.dirname(self.WORLD_PATH),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
+        )
+
+        # Start threads to read worldserver stdout/stderr
+        threading.Thread(
+            target=self.read_stream,
+            args=(self.world_process.stdout, self.log_world),
+            daemon=True
+        ).start()
+
+        threading.Thread(
+            target=self.read_stream,
+            args=(self.world_process.stderr, self.log_world),
+            daemon=True
+        ).start()
+
+        threading.Thread(target=self.monitor_worldserver, daemon=True).start()
 
     def start_server(self):
         if self.auth_process or self.world_process:
@@ -230,55 +294,8 @@ class AzerothManager:
             return
 
         try:
-            # --- Start authserver ---
-            self.auth_process = subprocess.Popen(
-                [self.AUTH_PATH],
-                cwd=os.path.dirname(self.AUTH_PATH),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
-            )
-
-            # Start threads to read authserver stdout/stderr
-            threading.Thread(
-                target=self.read_stream,
-                args=(self.auth_process.stdout, self.log_auth),
-                daemon=True
-            ).start()
-
-            threading.Thread(
-                target=self.read_stream,
-                args=(self.auth_process.stderr, self.log_auth),
-                daemon=True
-            ).start()
-
-            time.sleep(1)  # Optional delay to allow authserver to initialize
-
-            # --- Start worldserver ---
-            self.world_process = subprocess.Popen(
-                [self.WORLD_PATH],
-                cwd=os.path.dirname(self.WORLD_PATH),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
-            )
-
-            # Start threads to read worldserver stdout/stderr
-            threading.Thread(
-                target=self.read_stream,
-                args=(self.world_process.stdout, self.log_world),
-                daemon=True
-            ).start()
-
-            threading.Thread(
-                target=self.read_stream,
-                args=(self.world_process.stderr, self.log_world),
-                daemon=True
-            ).start()
-
+            self.start_authserver()
+            self.start_worldserver()
             self.log_manager("🔴 Servers started.\n")
 
             # --- Start log tail threads ---
@@ -295,6 +312,7 @@ class AzerothManager:
             )
             self.auth_log_thread.start()
             self.world_log_thread.start()
+            self.log_manager("🔴 Log threads started.\n")
 
             self.update_status()
 
@@ -349,7 +367,6 @@ class AzerothManager:
             self.auth_process = None
 
         if self.world_process:
-        #    self.world_process.terminate()
             self.world_process.stdin.write("server exit" + '\n')
             self.world_process.stdin.flush()
             self.world_process = None
@@ -360,7 +377,6 @@ class AzerothManager:
     def restart_server(self):
         world_running = self.check_process("worldserver.exe")
        
-
         # Create popup window
         restart_popup = tk.Toplevel(self.root)
         restart_popup.title("Restart Server")
@@ -386,7 +402,7 @@ class AzerothManager:
             exitcode_entry = tk.Entry(restart_popup)
             exitcode_entry.grid(row=2, column=1, padx=5, pady=5)
             exitcode_entry.insert(0, "2")
-            tk.Label(restart_popup, text="If you use custom exitcodes you can change it. Otherwise leave as 2.", fg="gray", font=("Arial", 8)).grid(row=3, column=0, columnspan=2)
+            tk.Label(restart_popup, text="If you use custom exitcodes you can change it.\n0 = Shutdown\n1 = Crash/Error\n2 = Restart", fg="gray", font=("Arial", 8)).grid(row=3, column=0, columnspan=2)
 
             def submit():
                 delay = delay_entry.get()
@@ -402,19 +418,22 @@ class AzerothManager:
             submit_btn = tk.Button(restart_popup, text="Submit", command=submit)
             submit_btn.grid(row=4, column=0, columnspan=2, pady=10)
 
-            if self.auth_process:
-                self.auth_process.terminate()
-                self.auth_process = None
+            self.log_manager("🔴 Worldserver restarting command sent...\n")
 
-            self.log_manager("🔴 Servers restarting...\n")
-            self.update_status()
-
-            self.start_server()
-
-#    def restart_server(self):
-#        self.stop_server()
-#        time.sleep(2)
-#        self.start_server()
+    def monitor_worldserver(self):
+        exit_code = self.world_process.wait()
+        self.log_manager(f"🔴 Worldserver exited with code: {exit_code}\n")
+        self.update_status()
+        if exit_code == 2: # restart
+            self.log_manager("🔴 Restarting Worldserver...\n")
+            self.start_worldserver()
+        if exit_code == 1: # crash/error
+            self.play_alert(self.root)
+            timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+            self.log_manager(f"❗ Worldserver crash at {timestamp}.\n")
+            if self.RESTART_WORLDSERVER_ON_CRASH == 1:
+                self.log_manager("🔴 Restarting Worldserver...\n")
+                self.start_worldserver()
 
     def update_status(self):
         world_running = self.check_process("worldserver.exe")
@@ -434,6 +453,9 @@ class AzerothManager:
 
     def check_process(self, name):
         return any(proc.info['name'] == name for proc in psutil.process_iter(['name']))
+
+    def play_alert(root, count=5):
+        winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC)
 
 if __name__ == "__main__":
     root = tk.Tk()
