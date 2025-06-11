@@ -1,5 +1,6 @@
 # Ignore PyInstaller build folder
 build/
+dist/
 
 # Ignore the spec file
 *.spec
