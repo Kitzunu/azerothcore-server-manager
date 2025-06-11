@@ -1,0 +1,5 @@
+# Ignore PyInstaller build folder
+build/
+
+# Ignore the spec file
+*.spec
