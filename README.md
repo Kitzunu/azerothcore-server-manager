@@ -1,5 +1,7 @@
 # ![icon](icon.png) AzerothCore Server Manager
 
+![manager-home](assets/manager-home.png)
+
 ## Installation
 
 **Requirements:**
@@ -13,7 +15,6 @@
 4. Find it in `D:\azerothcore-server-manager\dist`
 
 ## Features
-![manager-home](assets/manager-home.png)
 
 - Start/Stop your servers
 - Keep 
@@ -22,3 +23,8 @@
 - Send commands to the WorldServer console directly
 
 ![manager-command](assets/manager-command.png)
+
+## Credit
+
+- Kitzunu
+- ChatGPT
