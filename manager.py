@@ -86,7 +86,7 @@ class AzerothManager:
         # Add a "Help" menu
         help_menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="Report a bug", command=lambda: webbrowser.open("https://github.com/azerothcore"))
+        help_menu.add_command(label="Report a bug", command=lambda: webbrowser.open("https://github.com/Kitzunu/azerothcore-server-manager/issues"))
         help_menu.add_command(label="Join Discord", command=lambda: webbrowser.open("https://discord.com/invite/UE6NkHfC"))
 
     def create_widgets(self):
