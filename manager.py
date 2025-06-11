@@ -90,29 +90,34 @@ class AzerothManager:
         help_menu.add_command(label="Join Discord", command=lambda: webbrowser.open("https://discord.com/invite/UE6NkHfC"))
 
     def create_widgets(self):
-        button_frame = tk.Frame(self.root)
-        button_frame.pack(pady=5)
+        worldserver_button_frame = tk.Frame(self.root)
+        worldserver_button_frame.pack(pady=5, fill='x')
 
-        self.start_btn = tk.Button(button_frame, text="Start Server", command=self.start_server, width=15)
-        self.stop_btn = tk.Button(button_frame, text="Stop Server", command=self.stop_server, width=15)
-        self.restart_btn = tk.Button(button_frame, text="Restart Server", command=self.restart_server, width=15)
-
-        self.start_btn.pack(side=tk.LEFT, padx=5)
-        self.stop_btn.pack(side=tk.LEFT, padx=5)
-        self.restart_btn.pack(side=tk.LEFT, padx=5)
-
-        # Status Frame
-        status_frame_wrapper = tk.Frame(self.root)
-        status_frame_wrapper.pack(fill="x")  # allows child frame to center itself
-
-        status_frame = tk.Frame(status_frame_wrapper)
-        status_frame.pack(pady=5)  # this centers it by default in the x-filled wrapper
-
-        self.world_status_lbl = tk.Label(status_frame, text="Worldserver: Unknown", fg="gray")
+        self.world_status_lbl = tk.Label(worldserver_button_frame, text="Worldserver: Unknown", fg="gray")
         self.world_status_lbl.pack(side="left", padx=5)
 
-        self.auth_status_lbl = tk.Label(status_frame, text="Authserver: Unknown", fg="gray")
+        self.w_start_btn = tk.Button(worldserver_button_frame, text="Start Server", command=self.start_worldserver, width=15)
+        self.w_stop_btn = tk.Button(worldserver_button_frame, text="Stop Server", command=self.stop_worldserver, width=15)
+        self.w_kill_btn = tk.Button(worldserver_button_frame, text="Kill Server", command=self.kill_workdserver, width=15)
+        self.w_restart_btn = tk.Button(worldserver_button_frame, text="Restart Server", command=self.restart_worldserver, width=15)
+
+        self.w_start_btn.pack(side=tk.LEFT, padx=5)
+        self.w_stop_btn.pack(side=tk.LEFT, padx=5)
+        self.w_kill_btn.pack(side=tk.LEFT, padx=5)
+        self.w_restart_btn.pack(side=tk.LEFT, padx=5)
+
+        # Authserver Buttons
+        authserver_button_frame = tk.Frame(self.root)
+        authserver_button_frame.pack(pady=5, fill='x')
+
+        self.auth_status_lbl = tk.Label(authserver_button_frame, text="Authserver: Unknown", fg="gray")
         self.auth_status_lbl.pack(side="left", padx=5)
+
+        self.a_start_btn = tk.Button(authserver_button_frame, text="Start Server", command=self.start_authserver, width=15)
+        self.a_stop_btn = tk.Button(authserver_button_frame, text="Kill Server", command=self.kill_authserver, width=15)
+
+        self.a_start_btn.pack(side=tk.LEFT, padx=5)
+        self.a_stop_btn.pack(side=tk.LEFT, padx=5)
 
         # Notebook
         self.notebook = ttk.Notebook(self.root)
@@ -274,86 +279,92 @@ class AzerothManager:
         tk.Button(settings_win, text="Save", command=save).grid(row=5, column=1, pady=10)
 
     def start_authserver(self):
-        # --- Start authserver ---
-        self.auth_process = subprocess.Popen(
-            [self.AUTH_PATH],
-            cwd=os.path.dirname(self.AUTH_PATH),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
-        )
-
-        # Start threads to read authserver stdout/stderr
-        threading.Thread(
-            target=self.read_stream,
-            args=(self.auth_process.stdout, self.log_auth),
-            daemon=True
-        ).start()
-
-        threading.Thread(
-            target=self.read_stream,
-            args=(self.auth_process.stderr, self.log_auth),
-            daemon=True
-        ).start()
-
-    def start_worldserver(self):
-        # --- Start worldserver ---
-        self.world_process = subprocess.Popen(
-            [self.WORLD_PATH],
-            cwd=os.path.dirname(self.WORLD_PATH),
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
-        )
-
-        # Start threads to read worldserver stdout/stderr
-        threading.Thread(
-            target=self.read_stream,
-            args=(self.world_process.stdout, self.log_world),
-            daemon=True
-        ).start()
-
-        threading.Thread(
-            target=self.read_stream,
-            args=(self.world_process.stderr, self.log_world),
-            daemon=True
-        ).start()
-
-        threading.Thread(target=self.monitor_worldserver, daemon=True).start()
-
-    def start_server(self):
-        if self.auth_process or self.world_process:
-            self.log_manager("❗ Servers are already running.\n")
+        world_running = self.check_process("authserver.exe")
+        if world_running:
+            self.log_manager("❗ Authserver are already running.\n")
             return
 
         try:
-            self.start_authserver()
-            self.start_worldserver()
-            self.log_manager("🔴 Servers started.\n")
+            # --- Start authserver ---
+            self.auth_process = subprocess.Popen(
+                [self.AUTH_PATH],
+                cwd=os.path.dirname(self.AUTH_PATH),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
+            )
 
-            # --- Start log tail threads ---
-            self.stop_log.clear()
+            # Start threads to read authserver stdout/stderr
+            threading.Thread(
+                target=self.read_stream,
+                args=(self.auth_process.stdout, self.log_auth),
+                daemon=True
+            ).start()
+
+            threading.Thread(
+                target=self.read_stream,
+                args=(self.auth_process.stderr, self.log_auth),
+                daemon=True
+            ).start()
+
             self.auth_log_thread = threading.Thread(
                 target=self.tail_log_file,
                 args=(self.AUTH_LOG_FILE, self.log_auth),
                 daemon=True
+            ).start()
+
+            self.update_status()
+            self.log_manager("🔴 Authserver started.\n")
+
+        except Exception as e:
+            self.log_manager(f"❗ Error starting Authserver: {e}\n")
+
+    def start_worldserver(self):
+        world_running = self.check_process("worldserver.exe")
+        if world_running:
+            self.log_manager("❗ Worldserver are already running.\n")
+            return
+
+        try:
+            # --- Start worldserver ---
+            self.world_process = subprocess.Popen(
+                [self.WORLD_PATH],
+                cwd=os.path.dirname(self.WORLD_PATH),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
             )
+
+            # Start threads to read worldserver stdout/stderr
+            threading.Thread(
+                target=self.read_stream,
+                args=(self.world_process.stdout, self.log_world),
+                daemon=True
+            ).start()
+
+            threading.Thread(
+                target=self.read_stream,
+                args=(self.world_process.stderr, self.log_world),
+                daemon=True
+            ).start()
+
+            self.stop_log.clear()
             self.world_log_thread = threading.Thread(
                 target=self.tail_log_file,
                 args=(self.WORLD_LOG_FILE, self.log_world),
                 daemon=True
-            )
-            self.auth_log_thread.start()
-            self.world_log_thread.start()
-            self.log_manager("🔴 Log threads started.\n")
+            ).start()
+
+            threading.Thread(target=self.monitor_worldserver, daemon=True).start()
 
             self.update_status()
+            self.log_manager("🔴 Worldserver started.\n")
 
         except Exception as e:
-            self.log_manager(f"❗ Error starting servers: {e}\n")
+            self.log_manager(f"❗ Error starting Worldserver: {e}\n")
 
     def read_stream(self, stream, log_function):
         try:
@@ -395,22 +406,34 @@ class AzerothManager:
         except Exception as e:
             self.log_manager(f"❗ General error tailing log file {filepath}: {e}\n")
 
-    def stop_server(self):
-        self.stop_log.set()
-
+    def kill_authserver(self):
         if self.auth_process:
             self.auth_process.terminate()
             self.auth_process = None
+        
+        self.log_manager("🔴 Authserver killed.\n")
+        self.update_status()
+
+    def stop_worldserver(self):
+        self.stop_log.set()
 
         if self.world_process:
             self.world_process.stdin.write("server exit" + '\n')
             self.world_process.stdin.flush()
             self.world_process = None
 
-        self.log_manager("🔴 Servers stopped.\n")
+        self.log_manager("🔴 Worldserver stopped.\n")
         self.update_status()
 
-    def restart_server(self):
+    def kill_workdserver(self):
+        if self.world_process:
+            self.world_process.terminate()
+            self.world_process = None
+        
+        self.log_manager("🔴 Worldserver killed.\n")
+        self.update_status()
+
+    def restart_worldserver(self):
         world_running = self.check_process("worldserver.exe")
        
         # Create popup window
@@ -427,7 +450,7 @@ class AzerothManager:
         restart_popup.iconbitmap(icon_path)
 
         if not world_running:
-            tk.Label(restart_popup, text="You cannot restart the server if WorldServer is offline.", fg="red", font=("Arial", 8)).grid(row=0, column=0, columnspan=2)
+            tk.Label(restart_popup, text="❗ ERROR: Worldserver is offline.", fg="red", font=("Arial", 8)).grid(row=0, column=0, columnspan=2)
         else:
             tk.Label(restart_popup, text="Delay:").grid(row=0, column=0, padx=5, pady=5)
             delay_entry = tk.Entry(restart_popup)
@@ -440,6 +463,7 @@ class AzerothManager:
             exitcode_entry.insert(0, "2")
             tk.Label(restart_popup, text="If you use custom exitcodes you can change it.\n0 = Shutdown\n1 = Crash/Error\n2 = Restart", fg="gray", font=("Arial", 8)).grid(row=3, column=0, columnspan=2)
 
+            self.delay_str = ""
             def submit():
                 delay = delay_entry.get()
                 exit_code = exitcode_entry.get()
@@ -447,6 +471,7 @@ class AzerothManager:
                     cmd = f"server restart {delay} {exit_code}\n"
                     self.world_process.stdin.write(cmd)
                     self.world_process.stdin.flush()
+                    self.delay_str = delay
                     restart_popup.destroy()
                 else:
                     tk.messagebox.showwarning("Input error", "Please fill both fields")
@@ -454,7 +479,9 @@ class AzerothManager:
             submit_btn = tk.Button(restart_popup, text="Submit", command=submit)
             submit_btn.grid(row=4, column=0, columnspan=2, pady=10)
 
-            self.log_manager("🔴 Worldserver restarting command sent...\n")
+            restart_popup.grab_set()
+            self.root.wait_window(restart_popup)
+            self.log_manager(f"🔴 Worldserver will restart in {self.delay_str}...\n")
 
     def monitor_worldserver(self):
         exit_code = self.world_process.wait()
