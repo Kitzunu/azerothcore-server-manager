@@ -7,7 +7,7 @@ import threading
 import time
 import configparser
 
-# python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" --distpath D:\acd manager.py
+# python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
 
 SETTINGS_FILE = "settings.ini"
 
