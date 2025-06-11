@@ -1,14 +1,15 @@
+import sys
 import tkinter as tk
 from tkinter import filedialog, scrolledtext, ttk
 import subprocess
 import os
-import psutil
 import threading
 import time
 import configparser
 import winsound
 import datetime
 import webbrowser
+import psutil
 
 # Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
@@ -38,7 +39,7 @@ class AzerothManager:
         self.world_log_thread = None
         self.stop_log = threading.Event()
 
-        self.create_menu_bar()
+        self.create_menu_bar(root)
         self.create_widgets()
         self.update_status()
 
@@ -73,7 +74,7 @@ class AzerothManager:
         with open(SETTINGS_FILE, 'w') as configfile:
             self.config.write(configfile)
 
-    def create_menu_bar(self):
+    def create_menu_bar(self, root):
         menu_bar = tk.Menu(root)
         root.config(menu=menu_bar)
 
@@ -312,7 +313,8 @@ class AzerothManager:
                 target=self.tail_log_file,
                 args=(self.AUTH_LOG_FILE, self.log_auth),
                 daemon=True
-            ).start()
+            )
+            self.auth_log_thread.start()
 
             self.update_status()
             self.log_manager("🔴 Authserver started.\n")
@@ -356,7 +358,8 @@ class AzerothManager:
                 target=self.tail_log_file,
                 args=(self.WORLD_LOG_FILE, self.log_world),
                 daemon=True
-            ).start()
+            )
+            self.world_log_thread.start()
 
             threading.Thread(target=self.monitor_worldserver, daemon=True).start()
 
@@ -491,7 +494,7 @@ class AzerothManager:
             self.log_manager("🔴 Restarting Worldserver...\n")
             self.start_worldserver()
         if exit_code == 1: # crash/error
-            self.play_alert(self.root)
+            self.play_alert()
             timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
             self.log_manager(f"❗ Worldserver crash at {timestamp}.\n")
             if self.RESTART_WORLDSERVER_ON_CRASH == 1:
@@ -517,7 +520,7 @@ class AzerothManager:
     def check_process(self, name):
         return any(proc.info['name'] == name for proc in psutil.process_iter(['name']))
 
-    def play_alert(root, count=5):
+    def play_alert(self):
         winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC)
 
 if __name__ == "__main__":
