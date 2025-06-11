@@ -140,7 +140,7 @@ class AzerothManager:
         self.log_manager("                                  ██║     ██║   ██║██╔══██╗██╔══╝\n")
         self.log_manager("                                  ╚██████╗╚██████╔╝██║  ██║███████╗\n")
         self.log_manager("                                   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\n\n")
-        self.log_manager("     www.github.com/azerothcore/azerothcore-manager\n\n")
+        self.log_manager("     https://github.com/Kitzunu/azerothcore-server-manager/\n\n")
         self.log_manager("❗ Make sure to configure the SETTINGS before running the servers. ❗\n\n")
         self.log_manager(f"> Worldserver.exe path:         {self.WORLD_PATH}\n")
         self.log_manager(f"> Authserver.exe path:          {self.AUTH_PATH}\n")
