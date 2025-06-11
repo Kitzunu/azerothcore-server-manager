@@ -8,7 +8,9 @@ import time
 import configparser
 import winsound
 import datetime
+import webbrowser
 
+# Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
 
 SETTINGS_FILE = "settings.ini"
@@ -36,6 +38,7 @@ class AzerothManager:
         self.world_log_thread = None
         self.stop_log = threading.Event()
 
+        self.create_menu_bar()
         self.create_widgets()
         self.update_status()
 
@@ -69,6 +72,22 @@ class AzerothManager:
         self.config['General']['restart_worldserver_on_crash'] = self.RESTART_WORLDSERVER_ON_CRASH
         with open(SETTINGS_FILE, 'w') as configfile:
             self.config.write(configfile)
+
+    def create_menu_bar(self):
+        menu_bar = tk.Menu(root)
+        root.config(menu=menu_bar)
+
+        # Add a "File" menu
+        file_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Settings", command=self.open_settings_window)
+        file_menu.add_command(label="Exit", command=root.destroy)
+
+        # Add a "Help" menu
+        help_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Report a bug", command=lambda: webbrowser.open("https://github.com/azerothcore"))
+        help_menu.add_command(label="Join Discord", command=lambda: webbrowser.open("https://discord.com/invite/UE6NkHfC"))
 
     def create_widgets(self):
         button_frame = tk.Frame(self.root)
@@ -105,7 +124,26 @@ class AzerothManager:
         self.manager_log = scrolledtext.ScrolledText(self.notebook, width=80, height=15, state='disabled')
         self.notebook.add(self.manager_log, text="Manager Log")
         self.manager_tab_index = self.notebook.index(self.manager_log)
-        self.log_manager("❗ Make sure to configure the SETTINGS before running the servers.\n")
+        self.log_manager("\n")
+        self.log_manager("   █████╗ ███████╗███████╗██████╗  ██████╗ ████████╗██╗  ██╗\n")
+        self.log_manager("  ██╔══██╗╚══███╔╝██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝██║  ██║\n")
+        self.log_manager("  ███████║  ███╔╝ █████╗  ██████╔╝██║   ██║   ██║   ███████║\n")
+        self.log_manager("  ██╔══██║ ███╔╝  ██╔══╝  ██╔══██╗██║   ██║   ██║   ██╔══██║\n")
+        self.log_manager("  ██║  ██║███████╗███████╗██║  ██║╚██████╔╝   ██║   ██║  ██║\n")
+        self.log_manager("  ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝\n")
+        self.log_manager("                                   ██████╗ ██████╗ ██████╗ ███████╗\n")
+        self.log_manager("                                  ██╔════╝██╔═══██╗██╔══██╗██╔════╝\n")
+        self.log_manager("                                  ██║     ██║   ██║██████╔╝█████╗\n")
+        self.log_manager("                                  ██║     ██║   ██║██╔══██╗██╔══╝\n")
+        self.log_manager("                                  ╚██████╗╚██████╔╝██║  ██║███████╗\n")
+        self.log_manager("                                   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\n\n")
+        self.log_manager("     www.github.com/azerothcore/azerothcore-manager\n\n")
+        self.log_manager("❗ Make sure to configure the SETTINGS before running the servers. ❗\n\n")
+        self.log_manager(f"> Worldserver.exe path:         {self.WORLD_PATH}\n")
+        self.log_manager(f"> Authserver.exe path:          {self.AUTH_PATH}\n")
+        self.log_manager(f"> Server.log path:              {self.WORLD_LOG_FILE}\n")
+        self.log_manager(f"> Auth.log path:                {self.AUTH_LOG_FILE}\n")
+        self.log_manager(f"> Restart Worldserver on crash: {self.RESTART_WORLDSERVER_ON_CRASH}\n")
 
         # Authserver log tab
         self.auth_log = scrolledtext.ScrolledText(self.notebook, width=80, height=15, state='disabled')
