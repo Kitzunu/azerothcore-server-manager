@@ -96,12 +96,10 @@ class AzerothManager:
         self.start_btn = tk.Button(button_frame, text="Start Server", command=self.start_server, width=15)
         self.stop_btn = tk.Button(button_frame, text="Stop Server", command=self.stop_server, width=15)
         self.restart_btn = tk.Button(button_frame, text="Restart Server", command=self.restart_server, width=15)
-        self.settings_btn = tk.Button(button_frame, text="Settings", command=self.open_settings_window, width=15)
 
         self.start_btn.pack(side=tk.LEFT, padx=5)
         self.stop_btn.pack(side=tk.LEFT, padx=5)
         self.restart_btn.pack(side=tk.LEFT, padx=5)
-        self.settings_btn.pack(side=tk.LEFT, padx=5)
 
         # Status Frame
         status_frame_wrapper = tk.Frame(self.root)
