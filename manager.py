@@ -12,6 +12,8 @@ import webbrowser
 import psutil
 import mysql.connector
 from mysql.connector import Error
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
 
 # Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
@@ -198,15 +200,15 @@ class AzerothManager:
         self.world_log_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.world_log_frame, text="Worldserver Console")
 
-        # Frame to hold the text and scrollbar
+        # Worldserver log tab Frame to hold the text and scrollbar
         self.world_log_text_frame = tk.Frame(self.world_log_frame)
         self.world_log_text_frame.pack(fill="both", expand=True, padx=5, pady=(5, 0))
 
-        # Scrollbar
+        # Worldserver log tab Scrollbar
         self.world_scrollbar = tk.Scrollbar(self.world_log_text_frame)
         self.world_scrollbar.pack(side="right", fill="y")
 
-        # World log output (Text widget)
+        # Worldserver log tab World log output (Text widget)
         self.world_log_output = tk.Text(
             self.world_log_text_frame,
             wrap="word",
@@ -215,14 +217,14 @@ class AzerothManager:
         )
         self.world_log_output.pack(side="left", fill="both", expand=True)
         
-        # Connect scrollbar to text widget
+        # Worldserver log tab Connect scrollbar to text widget
         self.world_scrollbar.config(command=self.world_log_output.yview)
 
-        # Frame for input + button
+        # Worldserver log tab Frame for input + button
         self.world_input_frame = tk.Frame(self.world_log_frame)
         self.world_input_frame.pack(fill="x", padx=5, pady=5)
 
-        # Input entry
+        # Worldserver log tab Input entry
         self.world_input = tk.Entry(self.world_input_frame)
         self.world_input.pack(side="left", fill="x", expand=True)
 
@@ -230,7 +232,7 @@ class AzerothManager:
         self.world_input.insert(0, placeholder)
         self.world_input.config(fg='grey')
 
-        # Define focus-in and focus-out behavior
+        # Worldserver log tab Define focus-in and focus-out behavior
         def on_focus_in(event):
             if self.world_input.get() == placeholder:
                 self.world_input.delete(0, tk.END)
@@ -244,10 +246,21 @@ class AzerothManager:
         self.world_input.bind("<FocusIn>", on_focus_in)
         self.world_input.bind("<FocusOut>", on_focus_out)
 
-        # Send button
+        # Worldserver log tab Send button
         self.world_send_button = tk.Button(self.world_input_frame, text="Send", command=self.send_world_input)
         self.world_send_button.pack(side="left", padx=(5, 0))
         self.world_input.bind("<Return>", lambda event: self.send_world_input())
+
+        # Statistics tab 
+        self.stats_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.stats_frame, text="Server Stats")
+        
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+
+    def on_tab_change(self, event):
+        selected_tab = event.widget.tab("current")["text"]
+        if selected_tab == "Server Stats":
+            self.show_faction_pie_chart()
 
     def send_world_input(self):
         command = self.world_input.get().strip()
@@ -484,6 +497,7 @@ class AzerothManager:
             self.update_online_players()
             self.update_online_gms()
             self.update_open_tickets()
+            self.show_faction_pie_chart()
             self.log_manager("🔴 Worldserver started.\n")
 
         except Exception as e:
@@ -739,6 +753,59 @@ class AzerothManager:
         if world_running:
             # Schedule check every 60s
             self.root.after(60000, self.update_open_tickets)
+
+    def show_faction_pie_chart(self):
+        world_running = self.check_process("worldserver.exe")
+        if world_running:
+            for widget in self.stats_frame.winfo_children():
+                widget.destroy()
+
+            try:
+                conn = mysql.connector.connect(
+                    host=self.DATABASE_HOST,
+                    port=self.DATABASE_PORT,
+                    user=self.DATABASE_USER,
+                    password=self.DATABASE_PASSWORD,
+                    database=self.DATABASE_CHARACTERS,
+                )
+                cursor = conn.cursor()
+                cursor.execute("SELECT race, COUNT(*) FROM characters WHERE online = 1 GROUP BY race")
+                data = cursor.fetchall()
+                cursor.close()
+                conn.close()
+
+                alliance_races = {1, 3, 4, 7, 11, 22}
+                horde_races = {2, 5, 6, 8, 10, 9}
+                alliance_count = sum(count for race, count in data if race in alliance_races)
+                horde_count = sum(count for race, count in data if race in horde_races)
+                total = alliance_count + horde_count
+                if total == 0:
+                    return
+
+                labels = ['Alliance', 'Horde']
+                sizes = [alliance_count, horde_count]
+                colors = ['#0070ff', '#c41f3b']
+
+                def autopct_format(pct, all_vals):
+                    absolute = int(round(pct/100.*sum(all_vals)))
+                    return f"{pct:.0f}%\n({absolute})"
+
+                fig, ax = plt.subplots(figsize=(2.5,2.5))
+                ax.pie(sizes, labels=labels, autopct=lambda pct: autopct_format(pct, sizes), colors=colors, startangle=90)
+                ax.axis('equal')
+                ax.set_title("Faction Distribution (Online Players)", fontsize=10, pad=3, fontweight='bold')
+                fig.tight_layout()
+
+                canvas = FigureCanvasTkAgg(fig, master=self.stats_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(expand=True, fill='both')
+
+            except mysql.connector.Error as err:
+                self.log_manager(f"❗ show_faction_pie_chart: MySQL error: {err}\n")
+
+        if world_running:
+            # Schedule check every 10s
+            self.root.after(10000, self.show_faction_pie_chart)
 
     def check_process(self, name):
         return any(proc.info['name'] == name for proc in psutil.process_iter(['name']))

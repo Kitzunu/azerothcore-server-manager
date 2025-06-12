@@ -12,8 +12,9 @@
 1. `python -m pip install pyinstaller`
 2. `python -m pip install psutil`
 3. `python -m pip install mysql-connector-python`
-4. `python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py`
-5. Find it in `D:\azerothcore-server-manager\dist`
+4. `python -m pip install matplotlib`
+5. `python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py`
+6. Find it in `D:\azerothcore-server-manager\dist`
 
 ## Features
 
@@ -23,8 +24,10 @@
 - Send commands to the WorldServer console directly
 - Show player online count, gm online count
 - Show open tickets count
+- Show online faction distribution
 
 ![manager-command](assets/manager-command.png)
+![manager-pie](assets/manager-pie.png)
 
 ## Credit
 
