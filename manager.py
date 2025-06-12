@@ -10,6 +10,8 @@ import winsound
 import datetime
 import webbrowser
 import psutil
+import mysql.connector
+from mysql.connector import Error
 
 # Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
@@ -41,7 +43,9 @@ class AzerothManager:
 
         self.create_menu_bar(root)
         self.create_widgets()
+        self.header()
         self.update_status()
+        self.test_connect_mysql()
 
     def load_settings(self):
         if not os.path.exists(SETTINGS_FILE):
@@ -54,6 +58,15 @@ class AzerothManager:
             self.config['General'] = {
                 'restart_worldserver_on_crash': True,
             }
+            self.config['Database'] = {
+                'database_host': '127.0.0.1',
+                'database_port': '3306',
+                'database_user': 'acore',
+                'database_password': 'acore',
+                'database_world': 'acore_world',
+                'database_characters': 'acore_characters',
+                'database_auth': 'acore_auth',
+            }
             with open(SETTINGS_FILE, 'w') as configfile:
                 self.config.write(configfile)
         else:
@@ -64,6 +77,13 @@ class AzerothManager:
         self.WORLD_LOG_FILE = self.config['Paths']['world_log_file']
         self.AUTH_LOG_FILE = self.config['Paths']['auth_log_file']
         self.RESTART_WORLDSERVER_ON_CRASH = self.config.getboolean('General', 'restart_worldserver_on_crash')
+        self.DATABASE_HOST = self.config['Database']['database_host']
+        self.DATABASE_PORT = self.config['Database']['database_port']
+        self.DATABASE_USER = self.config['Database']['database_user']
+        self.DATABASE_PASSWORD = self.config['Database']['database_password']
+        self.DATABASE_WORLD = self.config['Database']['database_world']
+        self.DATABASE_CHARACTERS = self.config['Database']['database_characters']
+        self.DATABASE_AUTH = self.config['Database']['database_auth']
 
     def save_settings(self):
         self.config['Paths']['worldserver'] = self.WORLD_PATH
@@ -71,8 +91,31 @@ class AzerothManager:
         self.config['Paths']['world_log_file'] = self.WORLD_LOG_FILE
         self.config['Paths']['auth_log_file'] = self.AUTH_LOG_FILE
         self.config['General']['restart_worldserver_on_crash'] = self.RESTART_WORLDSERVER_ON_CRASH
+        self.config['Database']['database_host'] = self.DATABASE_HOST
+        self.config['Database']['database_port'] = self.DATABASE_PORT
+        self.config['Database']['database_user'] = self.DATABASE_USER
+        self.config['Database']['database_password'] = self.DATABASE_PASSWORD
+        self.config['Database']['database_world'] = self.DATABASE_WORLD
+        self.config['Database']['database_characters'] = self.DATABASE_CHARACTERS
+        self.config['Database']['database_auth'] = self.DATABASE_AUTH
         with open(SETTINGS_FILE, 'w') as configfile:
             self.config.write(configfile)
+
+    def test_connect_mysql(self):
+        try:
+            connection = mysql.connector.connect(
+                host = self.DATABASE_HOST,
+                port = self.DATABASE_PORT,
+                user = self.DATABASE_USER,
+                password = self.DATABASE_PASSWORD,
+                database = self.DATABASE_CHARACTERS,
+            )
+            if connection.is_connected():
+                self.log_manager("🔴 MySQL test connection successful for DB: Characters.\n")
+                return connection
+        except Error as e:
+            self.log_manager(f"❗ MySQL connection failed: {e}\n")
+            return None
 
     def create_menu_bar(self, root):
         menu_bar = tk.Menu(root)
@@ -120,14 +163,108 @@ class AzerothManager:
         self.a_start_btn.pack(side=tk.LEFT, padx=5)
         self.a_stop_btn.pack(side=tk.LEFT, padx=5)
 
+        # Server Stats
+        serverstats_button_frame = tk.Frame(self.root)
+        serverstats_button_frame.pack(pady=5, fill='x')
+
+        self.serverstats_lbl = tk.Label(serverstats_button_frame, text="Server Stats:", fg="black")
+        self.serverstats_lbl.pack(side="left", padx=5)
+
+        self.serverstats_onlineplayers_lbl = tk.Label(serverstats_button_frame, text="Online Players: Unknown", fg="grey")
+        self.serverstats_onlineplayers_lbl.pack(side="left", padx=5)
+
+        self.serverstats_onlinegms_lbl = tk.Label(serverstats_button_frame, text="Online GMs: Unknown", fg="grey")
+        self.serverstats_onlinegms_lbl.pack(side="left", padx=5)
+
+        self.serverstats_open_tickets_lbl = tk.Label(serverstats_button_frame, text="Open Tickets: Unknown", fg="grey")
+        self.serverstats_open_tickets_lbl.pack(side="left", padx=5)
+
         # Notebook
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(expand=True, fill='both', padx=10, pady=10)
 
+        self.tab_height = 20
+
         # Manager log tab
-        self.manager_log = scrolledtext.ScrolledText(self.notebook, width=80, height=15, state='disabled')
+        self.manager_log = scrolledtext.ScrolledText(self.notebook, width=80, height=self.tab_height, state='disabled')
         self.notebook.add(self.manager_log, text="Manager Log")
         self.manager_tab_index = self.notebook.index(self.manager_log)
+
+        # Authserver log tab
+        self.auth_log = scrolledtext.ScrolledText(self.notebook, width=80, height=self.tab_height, state='disabled')
+        self.notebook.add(self.auth_log, text="Authserver Log")
+
+        # Worldserver log tab
+        self.world_log_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.world_log_frame, text="Worldserver Console")
+
+        # Frame to hold the text and scrollbar
+        self.world_log_text_frame = tk.Frame(self.world_log_frame)
+        self.world_log_text_frame.pack(fill="both", expand=True, padx=5, pady=(5, 0))
+
+        # Scrollbar
+        self.world_scrollbar = tk.Scrollbar(self.world_log_text_frame)
+        self.world_scrollbar.pack(side="right", fill="y")
+
+        # World log output (Text widget)
+        self.world_log_output = tk.Text(
+            self.world_log_text_frame,
+            wrap="word",
+            height=self.tab_height,
+            yscrollcommand=self.world_scrollbar.set
+        )
+        self.world_log_output.pack(side="left", fill="both", expand=True)
+        
+        # Connect scrollbar to text widget
+        self.world_scrollbar.config(command=self.world_log_output.yview)
+
+        # Frame for input + button
+        self.world_input_frame = tk.Frame(self.world_log_frame)
+        self.world_input_frame.pack(fill="x", padx=5, pady=5)
+
+        # Input entry
+        self.world_input = tk.Entry(self.world_input_frame)
+        self.world_input.pack(side="left", fill="x", expand=True)
+
+        placeholder = "Type a command here!"
+        self.world_input.insert(0, placeholder)
+        self.world_input.config(fg='grey')
+
+        # Define focus-in and focus-out behavior
+        def on_focus_in(event):
+            if self.world_input.get() == placeholder:
+                self.world_input.delete(0, tk.END)
+                self.world_input.config(fg='black')
+
+        def on_focus_out(event):
+            if not self.world_input.get():
+                self.world_input.insert(0, placeholder)
+                self.world_input.config(fg='grey')
+
+        self.world_input.bind("<FocusIn>", on_focus_in)
+        self.world_input.bind("<FocusOut>", on_focus_out)
+
+        # Send button
+        self.world_send_button = tk.Button(self.world_input_frame, text="Send", command=self.send_world_input)
+        self.world_send_button.pack(side="left", padx=(5, 0))
+        self.world_input.bind("<Return>", lambda event: self.send_world_input())
+
+    def send_world_input(self):
+        command = self.world_input.get().strip()
+        world_running = self.check_process("worldserver.exe")
+        if command and world_running:
+            try:
+                self.world_process.stdin.write(command + '\n')
+                self.world_process.stdin.flush()
+                self.world_log_output.insert("end", f"> {command}\n")
+                self.world_log_output.see("end")
+                self.world_input.delete(0, 'end')
+            except Exception as e:
+                self.log_world(f"❗ Failed to send command: {e}\n")
+        else:
+            self.log_world(f"❗ Failed to send command: {e}\nWorldserver is not running or stdin is unavailable.\n")
+
+    def header(self):
         self.log_manager("\n")
         self.log_manager("   █████╗ ███████╗███████╗██████╗  ██████╗ ████████╗██╗  ██╗\n")
         self.log_manager("  ██╔══██╗╚══███╔╝██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝██║  ██║\n")
@@ -148,61 +285,6 @@ class AzerothManager:
         self.log_manager(f"> Server.log path:              {self.WORLD_LOG_FILE}\n")
         self.log_manager(f"> Auth.log path:                {self.AUTH_LOG_FILE}\n")
         self.log_manager(f"> Restart Worldserver on crash: {self.RESTART_WORLDSERVER_ON_CRASH}\n")
-
-        # Authserver log tab
-        self.auth_log = scrolledtext.ScrolledText(self.notebook, width=80, height=15, state='disabled')
-        self.notebook.add(self.auth_log, text="Authserver Log")
-
-        # Worldserver log tab
-        self.world_log_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.world_log_frame, text="Worldserver Console")
-
-        # Frame to hold the text and scrollbar
-        self.world_log_text_frame = tk.Frame(self.world_log_frame)
-        self.world_log_text_frame.pack(fill="both", expand=True, padx=5, pady=(5, 0))
-
-        # Scrollbar
-        self.world_scrollbar = tk.Scrollbar(self.world_log_text_frame)
-        self.world_scrollbar.pack(side="right", fill="y")
-
-        # World log output (Text widget)
-        self.world_log_output = tk.Text(
-            self.world_log_text_frame,
-            wrap="word",
-            height=20,
-            yscrollcommand=self.world_scrollbar.set
-        )
-        self.world_log_output.pack(side="left", fill="both", expand=True)
-        
-        # Connect scrollbar to text widget
-        self.world_scrollbar.config(command=self.world_log_output.yview)
-
-        # Frame for input + button
-        self.world_input_frame = tk.Frame(self.world_log_frame)
-        self.world_input_frame.pack(fill="x", padx=5, pady=5)
-
-        # Input entry
-        self.world_input = tk.Entry(self.world_input_frame)
-        self.world_input.pack(side="left", fill="x", expand=True)
-
-        # Send button
-        self.world_send_button = tk.Button(self.world_input_frame, text="Send", command=self.send_world_input)
-        self.world_send_button.pack(side="left", padx=(5, 0))
-        self.world_input.bind("<Return>", lambda event: self.send_world_input())
-
-    def send_world_input(self):
-        command = self.world_input.get().strip()
-        if command and self.world_process and self.world_process.stdin:
-            try:
-                self.world_process.stdin.write(command + '\n')
-                self.world_process.stdin.flush()
-                self.world_log_output.insert("end", f"> {command}\n")
-                self.world_log_output.see("end")
-                self.world_input.delete(0, 'end')
-            except Exception as e:
-                self.world_log_output.insert("end", f"❗ Failed to send command: {e}\n")
-        else:
-            self.manager_log.insert("end", "❗ Failed to send command: {e}\nWorldserver is not running or stdin is unavailable.\n")
 
     def log_manager(self, text):
         self._append_text(self.manager_log, text)
@@ -267,6 +349,41 @@ class AzerothManager:
         restart_var.insert(0, self.RESTART_WORLDSERVER_ON_CRASH)
         restart_var.grid(row=4, column=1, padx=5, pady=5)
 
+        tk.Label(settings_win, text="Database Host:", anchor="w", justify="left").grid(row=5, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_HOST)
+        restart_var.grid(row=5, column=1, padx=5, pady=5)
+
+        tk.Label(settings_win, text="Database Port:", anchor="w", justify="left").grid(row=6, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_PORT)
+        restart_var.grid(row=6, column=1, padx=5, pady=5)
+
+        tk.Label(settings_win, text="Database User:", anchor="w", justify="left").grid(row=7, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_USER)
+        restart_var.grid(row=7, column=1, padx=5, pady=5)
+
+        tk.Label(settings_win, text="Database Password:", anchor="w", justify="left").grid(row=8, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_PASSWORD)
+        restart_var.grid(row=8, column=1, padx=5, pady=5)
+
+        tk.Label(settings_win, text="Database World:", anchor="w", justify="left").grid(row=9, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_WORLD)
+        restart_var.grid(row=9, column=1, padx=5, pady=5)
+
+        tk.Label(settings_win, text="Database Characters:", anchor="w", justify="left").grid(row=10, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_CHARACTERS)
+        restart_var.grid(row=10, column=1, padx=5, pady=5)
+
+        tk.Label(settings_win, text="Database Auth:", anchor="w", justify="left").grid(row=11, column=0, padx=5, pady=5, sticky="w")
+        restart_var = tk.Entry(settings_win, width=50)
+        restart_var.insert(0, self.DATABASE_AUTH)
+        restart_var.grid(row=11, column=1, padx=5, pady=5)
+
         def save():
             self.WORLD_PATH = world_entry.get()
             self.AUTH_PATH = auth_entry.get()
@@ -277,7 +394,7 @@ class AzerothManager:
             settings_win.destroy()
             self.log_manager("🔴 Settings saved.\n")
 
-        tk.Button(settings_win, text="Save", command=save).grid(row=5, column=1, pady=10)
+        tk.Button(settings_win, text="Save", command=save).grid(row=12, column=1, pady=10)
 
     def start_authserver(self):
         world_running = self.check_process("authserver.exe")
@@ -364,6 +481,9 @@ class AzerothManager:
             threading.Thread(target=self.monitor_worldserver, daemon=True).start()
 
             self.update_status()
+            self.update_online_players()
+            self.update_online_gms()
+            self.update_open_tickets()
             self.log_manager("🔴 Worldserver started.\n")
 
         except Exception as e:
@@ -517,13 +637,116 @@ class AzerothManager:
 
         self.root.after(3000, self.update_status)
 
+    def update_online_players(self):
+        world_running = self.check_process("worldserver.exe")
+        if world_running:
+            try:
+                conn = mysql.connector.connect(
+                    host = self.DATABASE_HOST,
+                    port = self.DATABASE_PORT,
+                    user = self.DATABASE_USER,
+                    password = self.DATABASE_PASSWORD,
+                    database = self.DATABASE_CHARACTERS,
+                )
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM characters WHERE online = 1;")
+                result = cursor.fetchone()
+                cursor.close()
+                conn.close()
+
+                self.serverstats_onlineplayers_lbl.config(
+                    text=f"Online Players: {result[0]}",
+                    fg="black"
+                )
+            except mysql.connector.Error as err:
+                self.log_manager(f"❗ update_online_players: MySQL error: {err}\n")
+        else:
+            self.serverstats_onlineplayers_lbl.config(
+                    text=f"Online Players: 0",
+                    fg="grey"
+                )
+        
+        if world_running:
+            # Schedule check every 10s
+            self.root.after(10000, self.update_online_players)
+
+    def update_online_gms(self):
+        world_running = self.check_process("worldserver.exe")
+        if world_running:
+            try:
+                conn = mysql.connector.connect(
+                    host = self.DATABASE_HOST,
+                    port = self.DATABASE_PORT,
+                    user = self.DATABASE_USER,
+                    password = self.DATABASE_PASSWORD,
+                    database = self.DATABASE_CHARACTERS,
+                )
+                cursor = conn.cursor()
+                cursor.execute(f"""
+                    SELECT COUNT(*) FROM {self.DATABASE_CHARACTERS}.characters c
+                    JOIN {self.DATABASE_AUTH}.account_access a ON c.account = a.id
+                    WHERE c.online = 1 AND a.gmlevel > 0;
+                """)
+                result = cursor.fetchone()
+                cursor.close()
+                conn.close()
+
+                self.serverstats_onlinegms_lbl.config(
+                    text=f"Online GMs: {result[0]}",
+                    fg="black"
+                )
+            except mysql.connector.Error as err:
+                self.log_manager(f"❗ update_online_gms: MySQL error: {err}\n")
+        else:
+            self.serverstats_onlinegms_lbl.config(
+                    text=f"Online GMs: 0",
+                    fg="grey"
+                )
+        
+        if world_running:
+            # Schedule check every 10s
+            self.root.after(10000, self.update_online_gms)     
+
+    def update_open_tickets(self):
+        world_running = self.check_process("worldserver.exe")
+        if world_running:
+            try:
+                conn = mysql.connector.connect(
+                    host = self.DATABASE_HOST,
+                    port = self.DATABASE_PORT,
+                    user = self.DATABASE_USER,
+                    password = self.DATABASE_PASSWORD,
+                    database = self.DATABASE_CHARACTERS,
+                )
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM gm_ticket WHERE type = 0;")
+                result = cursor.fetchone()
+                cursor.close()
+                conn.close()
+
+                self.serverstats_open_tickets_lbl.config(
+                    text=f"Open Tickets: {result[0]}",
+                    fg="black"
+                )
+            except mysql.connector.Error as err:
+                self.log_manager(f"❗ update_open_tickets: MySQL error: {err}\n")
+        else:
+            self.serverstats_open_tickets_lbl.config(
+                    text=f"Open Tickets: 0",
+                    fg="grey"
+                )
+        
+        if world_running:
+            # Schedule check every 60s
+            self.root.after(60000, self.update_open_tickets)
+
     def check_process(self, name):
         return any(proc.info['name'] == name for proc in psutil.process_iter(['name']))
 
     def play_alert(self):
         winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC)
 
-if __name__ == "__main__":
+if __name__ == "__main__":#
     root = tk.Tk()
     app = AzerothManager(root)
     root.protocol("WM_DELETE_WINDOW", lambda: (app.stop_log.set(), root.destroy()))
