@@ -274,19 +274,20 @@ class AzerothManager:
         self.serverstats_open_tickets_lbl = tk.Label(serverstats_button_frame, text="Open Tickets: Unknown", fg="grey")
         self.serverstats_open_tickets_lbl.pack(side="left", padx=5)
 
-        # Notebook
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(expand=True, fill='both', padx=10, pady=10)
+        # Wrapper Main Frame
+        main_frame = tk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.tab_height = 20
+        # Notebook
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Manager log tab
-        self.manager_log = scrolledtext.ScrolledText(self.notebook, width=80, height=self.tab_height, state='disabled')
+        self.manager_log = scrolledtext.ScrolledText(self.notebook, state='disabled')
         self.notebook.add(self.manager_log, text="Manager Log")
-        self.manager_tab_index = self.notebook.index(self.manager_log)
 
         # Authserver log tab
-        self.auth_log = scrolledtext.ScrolledText(self.notebook, width=80, height=self.tab_height, state='disabled')
+        self.auth_log = scrolledtext.ScrolledText(self.notebook, state='disabled')
         self.notebook.add(self.auth_log, text="Authserver Log")
 
         # Worldserver log tab
@@ -305,7 +306,6 @@ class AzerothManager:
         self.world_log_output = tk.Text(
             self.world_log_text_frame,
             wrap="word",
-            height=self.tab_height,
             yscrollcommand=self.world_scrollbar.set
         )
         self.world_log_output.pack(side="left", fill="both", expand=True)
@@ -351,14 +351,11 @@ class AzerothManager:
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
 
         # Account Tools
-        self.account_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.account_frame, text="Account Tools")
-
-        account_tools_frame = tk.Frame(self.account_frame)
-        account_tools_frame.pack(pady=5)
+        account_tools_frame = tk.LabelFrame(main_frame, text="Account Tools", padx=10, pady=10)
+        account_tools_frame.pack(pady=10)
 
         # Create Account
-        create_account_frame = tk.Frame(account_tools_frame)
+        create_account_frame = tk.LabelFrame(account_tools_frame, text = "Create Account")
         create_account_frame.pack(side=tk.LEFT, padx=10)
 
         tk.Label(create_account_frame, text="Username:").grid(row=0, column=0, sticky="e")
@@ -370,7 +367,7 @@ class AzerothManager:
         self.password_entry.grid(row=1, column=1)
 
         tk.Label(create_account_frame, text="GM Level:").grid(row=2, column=0, sticky="e")
-        self.gmlevel_entry = tk.Entry(create_account_frame, show="*")
+        self.gmlevel_entry = tk.Entry(create_account_frame)
         self.gmlevel_entry.grid(row=2, column=1)
 
         create_account_btn = tk.Frame(create_account_frame)
@@ -379,8 +376,8 @@ class AzerothManager:
         tk.Button(create_account_btn, text="Create Account", command=self.create_account).pack(side=tk.LEFT, padx=5)
 
         # Ban/Unban
-        ban_frame = tk.Frame(account_tools_frame)
-        ban_frame.pack(side=tk.LEFT, padx=10)
+        ban_frame = tk.LabelFrame(account_tools_frame, text="Ban / Unban")
+        ban_frame.pack(pady=10)
 
         tk.Label(ban_frame, text="Username:").grid(row=0, column=0, sticky="e")
         self.ban_username_entry = tk.Entry(ban_frame)
