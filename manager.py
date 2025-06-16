@@ -119,6 +119,87 @@ class AzerothManager:
             self.log_manager(f"❗ MySQL connection failed: {e}\n")
             return None
 
+    def get_server_resource_usage(self):
+        usage_info = {
+            "world": {"cpu": 0.0, "mem": 0.0},
+            "auth": {"cpu": 0.0, "mem": 0.0},
+        }
+
+        if self.world_process and self.world_process.poll() is None:
+            try:
+                world_ps = psutil.Process(self.world_process.pid)
+                usage_info["world"]["cpu"] = world_ps.cpu_percent(interval=0.1)
+                usage_info["world"]["mem"] = world_ps.memory_info().rss / (1024 ** 2)  # in MB
+            except Exception as e:
+                self.log_manager(f"❗ Error fetching worldserver stats: {e}\n")
+
+        if self.auth_process and self.auth_process.poll() is None:
+            try:
+                auth_ps = psutil.Process(self.auth_process.pid)
+                usage_info["auth"]["cpu"] = auth_ps.cpu_percent(interval=0.1)
+                usage_info["auth"]["mem"] = auth_ps.memory_info().rss / (1024 ** 2)  # in MB
+            except Exception as e:
+                self.log_manager(f"❗ Error fetching authserver stats: {e}\n")
+
+        return usage_info
+
+    def update_resource_display(self):
+        usage = self.get_server_resource_usage()
+        text = (
+            f"Worldserver: CPU {usage['world']['cpu']:.1f}% | RAM {usage['world']['mem']:.1f} MB   Authserver: CPU {usage['auth']['cpu']:.1f}% | RAM {usage['auth']['mem']:.1f} MB"
+        )
+        self.resource_lbl.config(text=text, fg='black')
+        self.root.after(3000, self.update_resource_display)  # Refresh every 3 sec
+
+    def send_world_command(self, command):
+        if self.world_process and self.world_process.poll() is None:
+            try:
+                self.world_process.stdin.write((command + '\n').encode())
+                self.world_process.stdin.flush()
+                self.log_world(f"[Input] {command}\n")
+            except Exception as e:
+                self.log_manager(f"❗ Failed to send command: {e}\n")
+        else:
+            self.log_manager("❗ worldserver is not running.\n")
+
+    def create_account(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+        gmlevel = self.gmlevel_entry.get()
+
+        if not username or not password:
+            self.log_manager("⚠️ Username and password cannot be empty.\n")
+            return
+
+        command = f"account create {username} {password}"
+        self.send_world_command(command)
+
+        if gmlevel >= 1:
+            command = f"account set gmlevel {username} {gmlevel} -1"
+            self.send_world_command(command)
+
+    def ban_account(self):
+        username = self.ban_username_entry.get()
+        duration = self.ban_duration_entry.get()
+        reason = self.ban_reason_entry.get()
+
+        if not username or not duration or not reason:
+            self.log_manager("⚠️ Fill in all ban fields.\n")
+            return
+
+        command = f'ban account {username} {duration} "{reason}"'
+        self.send_world_command(command)
+
+    def unban_account(self):
+        username = self.ban_username_entry.get()
+
+        if not username:
+            self.log_manager("⚠️ Username required to unban.\n")
+            return
+
+        command = f'unban account {username}'
+        self.send_world_command(command)
+
     def create_menu_bar(self, root):
         menu_bar = tk.Menu(root)
         root.config(menu=menu_bar)
@@ -164,6 +245,18 @@ class AzerothManager:
 
         self.a_start_btn.pack(side=tk.LEFT, padx=5)
         self.a_stop_btn.pack(side=tk.LEFT, padx=5)
+
+        # Server Resources
+        server_resource_frame = tk.Frame(self.root)
+        server_resource_frame.pack(pady=5, fill='x')
+
+        self.resource_title_lbl = tk.Label(server_resource_frame, text="Server Resources:", fg="black")
+        self.resource_title_lbl.pack(side="left", padx=5)
+
+        self.resource_lbl = tk.Label(server_resource_frame, text=
+                                     "Worldserver: CPU | RAM Authserver: CPU | RAM ",
+                                     fg="grey")
+        self.resource_lbl.pack(side='left', padx=5)
 
         # Server Stats
         serverstats_button_frame = tk.Frame(self.root)
@@ -256,6 +349,56 @@ class AzerothManager:
         self.notebook.add(self.stats_frame, text="Server Stats")
         
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+
+        # Account Tools
+        self.account_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.account_frame, text="Account Tools")
+
+        account_tools_frame = tk.Frame(self.account_frame)
+        account_tools_frame.pack(pady=5)
+
+        # Create Account
+        create_account_frame = tk.Frame(account_tools_frame)
+        create_account_frame.pack(side=tk.LEFT, padx=10)
+
+        tk.Label(create_account_frame, text="Username:").grid(row=0, column=0, sticky="e")
+        self.username_entry = tk.Entry(create_account_frame)
+        self.username_entry.grid(row=0, column=1)
+
+        tk.Label(create_account_frame, text="Password:").grid(row=1, column=0, sticky="e")
+        self.password_entry = tk.Entry(create_account_frame, show="*")
+        self.password_entry.grid(row=1, column=1)
+
+        tk.Label(create_account_frame, text="GM Level:").grid(row=2, column=0, sticky="e")
+        self.gmlevel_entry = tk.Entry(create_account_frame, show="*")
+        self.gmlevel_entry.grid(row=2, column=1)
+
+        create_account_btn = tk.Frame(create_account_frame)
+        create_account_btn.grid(row=3, column=0, columnspan=2, pady=5)
+
+        tk.Button(create_account_btn, text="Create Account", command=self.create_account).pack(side=tk.LEFT, padx=5)
+
+        # Ban/Unban
+        ban_frame = tk.Frame(account_tools_frame)
+        ban_frame.pack(side=tk.LEFT, padx=10)
+
+        tk.Label(ban_frame, text="Username:").grid(row=0, column=0, sticky="e")
+        self.ban_username_entry = tk.Entry(ban_frame)
+        self.ban_username_entry.grid(row=0, column=1)
+
+        tk.Label(ban_frame, text="Duration (e.g., 1d):").grid(row=1, column=0, sticky="e")
+        self.ban_duration_entry = tk.Entry(ban_frame)
+        self.ban_duration_entry.grid(row=1, column=1)
+
+        tk.Label(ban_frame, text="Reason:").grid(row=2, column=0, sticky="e")
+        self.ban_reason_entry = tk.Entry(ban_frame)
+        self.ban_reason_entry.grid(row=2, column=1)
+
+        ban_buttons = tk.Frame(ban_frame)
+        ban_buttons.grid(row=3, column=0, columnspan=2, pady=5)
+
+        tk.Button(ban_buttons, text="Ban", command=self.ban_account).pack(side=tk.LEFT, padx=5)
+        tk.Button(ban_buttons, text="Unban", command=self.unban_account).pack(side=tk.LEFT, padx=5)
 
     def on_tab_change(self, event):
         selected_tab = event.widget.tab("current")["text"]
@@ -498,6 +641,7 @@ class AzerothManager:
             self.update_online_gms()
             self.update_open_tickets()
             self.show_faction_pie_chart()
+            self.update_resource_display()
             self.log_manager("🔴 Worldserver started.\n")
 
         except Exception as e:
