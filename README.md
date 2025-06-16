@@ -25,6 +25,7 @@
 - Show player online count, gm online count
 - Show open tickets count
 - Show online faction distribution
+- Account manager
 
 ![manager-command](assets/manager-command.png)
 ![manager-pie](assets/manager-pie.png)

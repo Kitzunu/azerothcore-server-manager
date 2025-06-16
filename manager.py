@@ -128,16 +128,41 @@ class AzerothManager:
         if self.world_process and self.world_process.poll() is None:
             try:
                 world_ps = psutil.Process(self.world_process.pid)
-                usage_info["world"]["cpu"] = world_ps.cpu_percent(interval=0.1)
-                usage_info["world"]["mem"] = world_ps.memory_info().rss / (1024 ** 2)  # in MB
+
+                # Prime CPU reading
+                world_ps.cpu_percent(interval=None)
+                time.sleep(1)  # Measure CPU over 1 second
+                world_cpu_usage = world_ps.cpu_percent(interval=None)
+
+                # Normalize CPU usage by number of cores
+                world_num_cpus = psutil.cpu_count()
+                world_normalized_cpu = world_cpu_usage / world_num_cpus
+
+                world_mem_usage = world_ps.memory_info().rss / (1024 ** 2)  # in MB
+
+                # Update your data safely (use a thread-safe structure if needed)
+                usage_info["world"]["cpu"] = round(world_normalized_cpu, 2)
+                usage_info["world"]["mem"] = round(world_mem_usage, 2)
             except Exception as e:
                 self.log_manager(f"❗ Error fetching worldserver stats: {e}\n")
 
         if self.auth_process and self.auth_process.poll() is None:
             try:
                 auth_ps = psutil.Process(self.auth_process.pid)
-                usage_info["auth"]["cpu"] = auth_ps.cpu_percent(interval=0.1)
-                usage_info["auth"]["mem"] = auth_ps.memory_info().rss / (1024 ** 2)  # in MB
+                # Prime CPU reading
+                auth_ps.cpu_percent(interval=None)
+                time.sleep(1)  # Measure CPU over 1 second
+                auth_cpu_usage = auth_ps.cpu_percent(interval=None)
+
+                # Normalize CPU usage by number of cores
+                auth_num_cpus = psutil.cpu_count()
+                auth_normalized_cpu = auth_cpu_usage / auth_num_cpus
+
+                auth_mem_usage = auth_ps.memory_info().rss / (1024 ** 2)  # in MB
+
+                # Update your data safely (use a thread-safe structure if needed)
+                usage_info["auth"]["cpu"] = round(auth_normalized_cpu, 2)
+                usage_info["auth"]["mem"] = round(auth_mem_usage, 2)
             except Exception as e:
                 self.log_manager(f"❗ Error fetching authserver stats: {e}\n")
 
@@ -700,13 +725,13 @@ class AzerothManager:
             self.world_log_thread.start()
 
             threading.Thread(target=self.monitor_worldserver, daemon=True).start()
+            threading.Thread(target=self.update_resource_display, daemon=True).start()
 
             self.update_status()
             self.update_online_players()
             self.update_online_gms()
             self.update_open_tickets()
             self.show_faction_pie_chart()
-            self.update_resource_display()
             self.log_manager("🔴 Worldserver started.\n")
 
         except Exception as e:
