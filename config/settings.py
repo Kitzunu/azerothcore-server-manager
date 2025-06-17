@@ -47,3 +47,33 @@ class SettingsManager:
 
     def set(self, section, key, value):
         self.config.set(section, key, str(value))
+
+    def load_settings(self):      
+        self.WORLD_PATH = self.get('Paths', 'worldserver')
+        self.AUTH_PATH = self.get('Paths', 'authserver')
+        self.WORLD_LOG_FILE = self.get('Paths', 'world_log_file')
+        self.AUTH_LOG_FILE = self.get('Paths', 'auth_log_file')
+        self.RESTART_WORLDSERVER_ON_CRASH = self.getboolean('General', 'restart_worldserver_on_crash')
+        self.DATABASE_HOST = self.get('Database', 'database_host')
+        self.DATABASE_PORT = self.get('Database', 'database_port')
+        self.DATABASE_USER = self.get('Database', 'database_user')
+        self.DATABASE_PASSWORD = self.get('Database', 'database_password')
+        self.DATABASE_WORLD = self.get('Database', 'database_world')
+        self.DATABASE_CHARACTERS = self.get('Database', 'database_characters')
+        self.DATABASE_AUTH = self.get('Database', 'database_auth')
+
+    def save_settings(self):
+        self.set('Paths', 'worldserver', self.WORLD_PATH)
+        self.set('Paths', 'authserver', self.AUTH_PATH)
+        self.set('Paths', 'world_log_file', self.WORLD_LOG_FILE)
+        self.set('Paths', 'auth_log_file', self.AUTH_LOG_FILE)
+        self.set('General', 'restart_worldserver_on_crash', self.RESTART_WORLDSERVER_ON_CRASH)
+        self.set('Database', 'database_host', self.DATABASE_HOST)
+        self.set('Database', 'database_port', self.DATABASE_PORT)
+        self.set('Database', 'database_user', self.DATABASE_USER)
+        self.set('Database', 'database_password', self.DATABASE_PASSWORD)
+        self.set('Database', 'database_world', self.DATABASE_WORLD)
+        self.set('Database', 'database_characters', self.DATABASE_CHARACTERS)
+        self.set('Database', 'database_auth', self.DATABASE_AUTH)
+
+        self.save()

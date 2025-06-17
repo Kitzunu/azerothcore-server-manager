@@ -1,13 +1,12 @@
 import sys
 import tkinter as tk
-from tkinter import filedialog, scrolledtext, ttk
+from tkinter import scrolledtext, ttk
 import subprocess
 import os
 import threading
 import time
 import winsound
 import datetime
-import webbrowser
 import psutil
 import mysql.connector
 from mysql.connector import Error
@@ -15,7 +14,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from config.settings import SettingsManager
 from core.logger import Logger
-from ui.info import InfoWindow
+from ui.menu import Menu
 
 # Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
@@ -35,9 +34,8 @@ class AzerothManager:
         self.root.iconbitmap(icon_path)
 
         self.settings = SettingsManager()
-        self.load_settings()
-
-        self.infowindow = InfoWindow(self.root)
+        self.settings.load_settings()
+        self.menu = Menu(self.root)
 
         self.auth_process = None
         self.world_process = None
@@ -45,54 +43,20 @@ class AzerothManager:
         self.world_log_thread = None
         self.stop_log = threading.Event()
 
-        self.create_menu_bar(root)
+        self.menu.create_menu_bar(self.root)
         self.create_widgets()
         self.header()
         self.update_status()
         self.test_connect_mysql()
 
-    def load_settings(self):
-        s = self.settings  # Short reference
-
-        self.WORLD_PATH = s.get('Paths', 'worldserver')
-        self.AUTH_PATH = s.get('Paths', 'authserver')
-        self.WORLD_LOG_FILE = s.get('Paths', 'world_log_file')
-        self.AUTH_LOG_FILE = s.get('Paths', 'auth_log_file')
-        self.RESTART_WORLDSERVER_ON_CRASH = s.getboolean('General', 'restart_worldserver_on_crash')
-        self.DATABASE_HOST = s.get('Database', 'database_host')
-        self.DATABASE_PORT = s.get('Database', 'database_port')
-        self.DATABASE_USER = s.get('Database', 'database_user')
-        self.DATABASE_PASSWORD = s.get('Database', 'database_password')
-        self.DATABASE_WORLD = s.get('Database', 'database_world')
-        self.DATABASE_CHARACTERS = s.get('Database', 'database_characters')
-        self.DATABASE_AUTH = s.get('Database', 'database_auth')
-
-    def save_settings(self):
-        s = self.settings  # Short reference
-
-        s.set('Paths', 'worldserver', self.WORLD_PATH)
-        s.set('Paths', 'authserver', self.AUTH_PATH)
-        s.set('Paths', 'world_log_file', self.WORLD_LOG_FILE)
-        s.set('Paths', 'auth_log_file', self.AUTH_LOG_FILE)
-        s.set('General', 'restart_worldserver_on_crash', bool(self.RESTART_WORLDSERVER_ON_CRASH))
-        s.set('Database', 'database_host', self.DATABASE_HOST)
-        s.set('Database', 'database_port', self.DATABASE_PORT)
-        s.set('Database', 'database_user', self.DATABASE_USER)
-        s.set('Database', 'database_password', self.DATABASE_PASSWORD)
-        s.set('Database', 'database_world', self.DATABASE_WORLD)
-        s.set('Database', 'database_characters', self.DATABASE_CHARACTERS)
-        s.set('Database', 'database_auth', self.DATABASE_AUTH)
-
-        s.save()
-
     def test_connect_mysql(self):
         try:
             connection = mysql.connector.connect(
-                host = self.DATABASE_HOST,
-                port = self.DATABASE_PORT,
-                user = self.DATABASE_USER,
-                password = self.DATABASE_PASSWORD,
-                database = self.DATABASE_CHARACTERS,
+                host = self.settings.DATABASE_HOST,
+                port = self.settings.DATABASE_PORT,
+                user = self.settings.DATABASE_USER,
+                password = self.settings.DATABASE_PASSWORD,
+                database = self.settings.DATABASE_CHARACTERS,
             )
             if connection.is_connected():
                 self.logger.manager("🔴 MySQL test connection successful for DB: Characters.\n")
@@ -206,23 +170,6 @@ class AzerothManager:
 
         command = f'unban account {username}'
         self.send_world_command(command)
-
-    def create_menu_bar(self, root):
-        menu_bar = tk.Menu(root)
-        root.config(menu=menu_bar)
-
-        # Add a "File" menu
-        file_menu = tk.Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Settings", command=self.open_settings_window)
-        file_menu.add_command(label="Exit", command=root.destroy)
-
-        # Add a "Help" menu
-        help_menu = tk.Menu(menu_bar, tearoff=0)
-        menu_bar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="Report a bug", command=lambda: webbrowser.open("https://github.com/Kitzunu/azerothcore-server-manager/issues"))
-        help_menu.add_command(label="Join Discord", command=lambda: webbrowser.open("https://discord.com/invite/UE6NkHfC"))
-        help_menu.add_command(label="About", command=self.infowindow.open_info_window)
 
     def create_widgets(self):
         worldserver_button_frame = tk.Frame(self.root)
@@ -448,116 +395,11 @@ class AzerothManager:
         self.logger.manager("                                   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\n\n")
         self.logger.manager("     https://github.com/Kitzunu/azerothcore-server-manager/\n\n")
         self.logger.manager("❗ Make sure to configure the SETTINGS before running the servers. ❗\n\n")
-        self.logger.manager(f"> Worldserver.exe path:         {self.WORLD_PATH}\n")
-        self.logger.manager(f"> Authserver.exe path:          {self.AUTH_PATH}\n")
-        self.logger.manager(f"> Server.log path:              {self.WORLD_LOG_FILE}\n")
-        self.logger.manager(f"> Auth.log path:                {self.AUTH_LOG_FILE}\n")
-        self.logger.manager(f"> Restart Worldserver on crash: {self.RESTART_WORLDSERVER_ON_CRASH}\n")
-
-    def open_settings_window(self):
-        self.settings.load()
-        s = self.settings
-
-        settings_win = tk.Toplevel(self.root)
-        settings_win.title("Settings")
-
-        # Get the correct path to the icon
-        if hasattr(sys, '_MEIPASS'):
-            base_path = sys._MEIPASS
-        else:
-            base_path = os.path.abspath(".")
-
-        icon_path = os.path.join(base_path, "assets", "manager.ico")
-        settings_win.iconbitmap(icon_path)
-
-        def browse(entry):
-            file_path = filedialog.askopenfilename()
-            if file_path:
-                entry.delete(0, tk.END)
-                entry.insert(0, file_path)
-
-        tk.Label(settings_win, text="Worldserver.exe path:", anchor="w", justify="left").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        world_entry = tk.Entry(settings_win, width=50)
-        world_entry.insert(0, s.get('Paths', 'worldserver'))
-        world_entry.grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(settings_win, text="Browse", command=lambda: browse(world_entry)).grid(row=0, column=2, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Authserver.exe path:", anchor="w", justify="left").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        auth_entry = tk.Entry(settings_win, width=50)
-        auth_entry.insert(0, s.get('Paths', 'authserver'))
-        auth_entry.grid(row=1, column=1, padx=5, pady=5)
-        tk.Button(settings_win, text="Browse", command=lambda: browse(auth_entry)).grid(row=1, column=2, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Server.log path:", anchor="w", justify="left").grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        world_log_entry = tk.Entry(settings_win, width=50)
-        world_log_entry.insert(0, s.get('Paths', 'world_log_file'))
-        world_log_entry.grid(row=2, column=1, padx=5, pady=5)
-        tk.Button(settings_win, text="Browse", command=lambda: browse(world_log_entry)).grid(row=2, column=2, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Auth.log path:", anchor="w", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="w")
-        auth_log_entry = tk.Entry(settings_win, width=50)
-        auth_log_entry.insert(0, s.get('Paths', 'auth_log_file'))
-        auth_log_entry.grid(row=3, column=1, padx=5, pady=5)
-        tk.Button(settings_win, text="Browse", command=lambda: browse(auth_log_entry)).grid(row=3, column=2, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Restart Worldserver on crash: (1/0)", anchor="w", justify="left").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, s.getboolean('General', 'restart_worldserver_on_crash'))
-        restart_var.grid(row=4, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database Host:", anchor="w", justify="left").grid(row=5, column=0, padx=5, pady=5, sticky="w")
-        database_host = tk.Entry(settings_win, width=50)
-        database_host.insert(0, s.get('Database', 'database_host'))
-        database_host.grid(row=5, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database Port:", anchor="w", justify="left").grid(row=6, column=0, padx=5, pady=5, sticky="w")
-        database_port = tk.Entry(settings_win, width=50)
-        database_port.insert(0, s.get('Database', 'database_port'))
-        database_port.grid(row=6, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database User:", anchor="w", justify="left").grid(row=7, column=0, padx=5, pady=5, sticky="w")
-        database_user = tk.Entry(settings_win, width=50)
-        database_user.insert(0, s.get('Database', 'database_user'))
-        database_user.grid(row=7, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database Password:", anchor="w", justify="left").grid(row=8, column=0, padx=5, pady=5, sticky="w")
-        database_password = tk.Entry(settings_win, width=50)
-        database_password.insert(0, s.get('Database', 'database_password'))
-        database_password.grid(row=8, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database World:", anchor="w", justify="left").grid(row=9, column=0, padx=5, pady=5, sticky="w")
-        database_world = tk.Entry(settings_win, width=50)
-        database_world.insert(0, s.get('Database', 'database_world'))
-        database_world.grid(row=9, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database Characters:", anchor="w", justify="left").grid(row=10, column=0, padx=5, pady=5, sticky="w")
-        database_characters = tk.Entry(settings_win, width=50)
-        database_characters.insert(0, s.get('Database', 'database_characters'))
-        database_characters.grid(row=10, column=1, padx=5, pady=5)
-
-        tk.Label(settings_win, text="Database Auth:", anchor="w", justify="left").grid(row=11, column=0, padx=5, pady=5, sticky="w")
-        database_auth = tk.Entry(settings_win, width=50)
-        database_auth.insert(0, s.get('Database', 'database_auth'))
-        database_auth.grid(row=11, column=1, padx=5, pady=5)
-
-        def save():
-            self.WORLD_PATH = world_entry.get()
-            self.AUTH_PATH = auth_entry.get()
-            self.WORLD_LOG_FILE = world_log_entry.get()
-            self.AUTH_LOG_FILE = auth_log_entry.get()
-            self.RESTART_WORLDSERVER_ON_CRASH = bool(restart_var.get())
-            self.DATABASE_HOST = database_host.get()
-            self.DATABASE_PORT = database_port.get()
-            self.DATABASE_USER = database_user.get()
-            self.DATABASE_PASSWORD = database_password.get()
-            self.DATABASE_WORLD = database_world.get()
-            self.DATABASE_CHARACTERS = database_characters.get()
-            self.DATABASE_AUTH = database_auth.get()
-            self.save_settings()
-            settings_win.destroy()
-            self.logger.manager("🔴 Settings saved.\n")
-
-        tk.Button(settings_win, text="Save", command=save).grid(row=12, column=1, pady=10)
+        self.logger.manager(f"> Worldserver.exe path:         {self.settings.WORLD_PATH}\n")
+        self.logger.manager(f"> Authserver.exe path:          {self.settings.AUTH_PATH}\n")
+        self.logger.manager(f"> Server.log path:              {self.settings.WORLD_LOG_FILE}\n")
+        self.logger.manager(f"> Auth.log path:                {self.settings.AUTH_LOG_FILE}\n")
+        self.logger.manager(f"> Restart Worldserver on crash: {self.settings.RESTART_WORLDSERVER_ON_CRASH}\n")
 
     def start_authserver(self):
         world_running = self.check_process("authserver.exe")
@@ -568,8 +410,8 @@ class AzerothManager:
         try:
             # --- Start authserver ---
             self.auth_process = subprocess.Popen(
-                [self.AUTH_PATH],
-                cwd=os.path.dirname(self.AUTH_PATH),
+                [self.settings.AUTH_PATH],
+                cwd=os.path.dirname(self.settings.AUTH_PATH),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -591,7 +433,7 @@ class AzerothManager:
 
             self.auth_log_thread = threading.Thread(
                 target=self.tail_log_file,
-                args=(self.AUTH_LOG_FILE, self.logger.auth),
+                args=(self.settings.AUTH_LOG_FILE, self.logger.auth),
                 daemon=True
             )
             self.auth_log_thread.start()
@@ -611,8 +453,8 @@ class AzerothManager:
         try:
             # --- Start worldserver ---
             self.world_process = subprocess.Popen(
-                [self.WORLD_PATH],
-                cwd=os.path.dirname(self.WORLD_PATH),
+                [self.settings.WORLD_PATH],
+                cwd=os.path.dirname(self.settings.WORLD_PATH),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -636,7 +478,7 @@ class AzerothManager:
             self.stop_log.clear()
             self.world_log_thread = threading.Thread(
                 target=self.tail_log_file,
-                args=(self.WORLD_LOG_FILE, self.logger.world),
+                args=(self.settings.WORLD_LOG_FILE, self.logger.world),
                 daemon=True
             )
             self.world_log_thread.start()
@@ -782,7 +624,7 @@ class AzerothManager:
             self.play_alert()
             timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
             self.logger.manager(f"❗ Worldserver crash at {timestamp}.\n")
-            if self.RESTART_WORLDSERVER_ON_CRASH:
+            if self.settings.RESTART_WORLDSERVER_ON_CRASH:
                 self.logger.manager("🔴 Restarting Worldserver...\n")
                 self.start_worldserver()
 
@@ -807,11 +649,11 @@ class AzerothManager:
         if world_running:
             try:
                 conn = mysql.connector.connect(
-                    host = self.DATABASE_HOST,
-                    port = self.DATABASE_PORT,
-                    user = self.DATABASE_USER,
-                    password = self.DATABASE_PASSWORD,
-                    database = self.DATABASE_CHARACTERS,
+                    host = self.settings.DATABASE_HOST,
+                    port = self.settings.DATABASE_PORT,
+                    user = self.settings.DATABASE_USER,
+                    password = self.settings.DATABASE_PASSWORD,
+                    database = self.settings.DATABASE_CHARACTERS,
                 )
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM characters WHERE online = 1;")
@@ -840,16 +682,16 @@ class AzerothManager:
         if world_running:
             try:
                 conn = mysql.connector.connect(
-                    host = self.DATABASE_HOST,
-                    port = self.DATABASE_PORT,
-                    user = self.DATABASE_USER,
-                    password = self.DATABASE_PASSWORD,
-                    database = self.DATABASE_CHARACTERS,
+                    host = self.settings.DATABASE_HOST,
+                    port = self.settings.DATABASE_PORT,
+                    user = self.settings.DATABASE_USER,
+                    password = self.settings.DATABASE_PASSWORD,
+                    database = self.settings.DATABASE_CHARACTERS,
                 )
                 cursor = conn.cursor()
                 cursor.execute(f"""
-                    SELECT COUNT(*) FROM {self.DATABASE_CHARACTERS}.characters c
-                    JOIN {self.DATABASE_AUTH}.account_access a ON c.account = a.id
+                    SELECT COUNT(*) FROM {self.settings.DATABASE_CHARACTERS}.characters c
+                    JOIN {self.settings.DATABASE_AUTH}.account_access a ON c.account = a.id
                     WHERE c.online = 1 AND a.gmlevel > 0;
                 """)
                 result = cursor.fetchone()
@@ -877,11 +719,11 @@ class AzerothManager:
         if world_running:
             try:
                 conn = mysql.connector.connect(
-                    host = self.DATABASE_HOST,
-                    port = self.DATABASE_PORT,
-                    user = self.DATABASE_USER,
-                    password = self.DATABASE_PASSWORD,
-                    database = self.DATABASE_CHARACTERS,
+                    host = self.settings.DATABASE_HOST,
+                    port = self.settings.DATABASE_PORT,
+                    user = self.settings.DATABASE_USER,
+                    password = self.settings.DATABASE_PASSWORD,
+                    database = self.settings.DATABASE_CHARACTERS,
                 )
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM gm_ticket WHERE type = 0;")
@@ -913,11 +755,11 @@ class AzerothManager:
 
             try:
                 conn = mysql.connector.connect(
-                    host=self.DATABASE_HOST,
-                    port=self.DATABASE_PORT,
-                    user=self.DATABASE_USER,
-                    password=self.DATABASE_PASSWORD,
-                    database=self.DATABASE_CHARACTERS,
+                    host=self.settings.DATABASE_HOST,
+                    port=self.settings.DATABASE_PORT,
+                    user=self.settings.DATABASE_USER,
+                    password=self.settings.DATABASE_PASSWORD,
+                    database=self.settings.DATABASE_CHARACTERS,
                 )
                 cursor = conn.cursor()
                 cursor.execute("SELECT race, COUNT(*) FROM characters WHERE online = 1 GROUP BY race")
