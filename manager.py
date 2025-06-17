@@ -71,7 +71,7 @@ class AzerothManager:
         s.set('Paths', 'authserver', self.AUTH_PATH)
         s.set('Paths', 'world_log_file', self.WORLD_LOG_FILE)
         s.set('Paths', 'auth_log_file', self.AUTH_LOG_FILE)
-        s.set('General', 'restart_worldserver_on_crash', int(self.RESTART_WORLDSERVER_ON_CRASH))
+        s.set('General', 'restart_worldserver_on_crash', bool(self.RESTART_WORLDSERVER_ON_CRASH))
         s.set('Database', 'database_host', self.DATABASE_HOST)
         s.set('Database', 'database_port', self.DATABASE_PORT)
         s.set('Database', 'database_user', self.DATABASE_USER)
@@ -95,7 +95,7 @@ class AzerothManager:
                 self.logger.manager("🔴 MySQL test connection successful for DB: Characters.\n")
                 return connection
         except Error as e:
-            self.log_manager(f"❗ MySQL connection failed: {e}\n")
+            self.logger.manager(f"❗ MySQL connection failed: {e}\n")
             return None
 
     def get_server_resource_usage(self):
@@ -123,7 +123,7 @@ class AzerothManager:
                 usage_info["world"]["cpu"] = round(world_normalized_cpu, 2)
                 usage_info["world"]["mem"] = round(world_mem_usage, 2)
             except Exception as e:
-                self.log_manager(f"❗ Error fetching worldserver stats: {e}\n")
+                self.logger.manager(f"❗ Error fetching worldserver stats: {e}\n")
 
         if self.auth_process and self.auth_process.poll() is None:
             try:
@@ -143,7 +143,7 @@ class AzerothManager:
                 usage_info["auth"]["cpu"] = round(auth_normalized_cpu, 2)
                 usage_info["auth"]["mem"] = round(auth_mem_usage, 2)
             except Exception as e:
-                self.log_manager(f"❗ Error fetching authserver stats: {e}\n")
+                self.logger.manager(f"❗ Error fetching authserver stats: {e}\n")
 
         return usage_info
 
@@ -162,7 +162,7 @@ class AzerothManager:
                 self.world_process.stdin.flush()
                 log_world(self.world_log_output, f"[Input] {command}\n")
             except Exception as e:
-                self.log_manager(f"❗ Failed to send command: {e}\n")
+                self.logger.manager(f"❗ Failed to send command: {e}\n")
         else:
             self.logger.manager("❗ worldserver is not running.\n")
 
@@ -566,7 +566,7 @@ class AzerothManager:
 
         tk.Label(settings_win, text="Restart Worldserver on crash: (1/0)", anchor="w", justify="left").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, s.get('General', 'restart_worldserver_on_crash'))
+        restart_var.insert(0, s.getboolean('General', 'restart_worldserver_on_crash'))
         restart_var.grid(row=4, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database Host:", anchor="w", justify="left").grid(row=5, column=0, padx=5, pady=5, sticky="w")
@@ -609,7 +609,7 @@ class AzerothManager:
             self.AUTH_PATH = auth_entry.get()
             self.WORLD_LOG_FILE = world_log_entry.get()
             self.AUTH_LOG_FILE = auth_log_entry.get()
-            self.RESTART_WORLDSERVER_ON_CRASH = int(restart_var.get())
+            self.RESTART_WORLDSERVER_ON_CRASH = bool(restart_var.get())
             self.DATABASE_HOST = database_host.get()
             self.DATABASE_PORT = database_port.get()
             self.DATABASE_USER = database_user.get()
@@ -664,7 +664,7 @@ class AzerothManager:
             self.logger.manager("🔴 Authserver started.\n")
 
         except Exception as e:
-            self.log_manager(f"❗ Error starting Authserver: {e}\n")
+            self.logger.manager(f"❗ Error starting Authserver: {e}\n")
 
     def start_worldserver(self):
         world_running = self.check_process("worldserver.exe")
@@ -716,7 +716,7 @@ class AzerothManager:
             self.logger.manager("🔴 Worldserver started.\n")
 
         except Exception as e:
-            self.log_manager(f"❗ Error starting Worldserver: {e}\n")
+            self.logger.manager(f"❗ Error starting Worldserver: {e}\n")
 
     def read_stream(self, stream, log_function):
         try:
@@ -724,12 +724,12 @@ class AzerothManager:
                 if line:
                     log_function(line)
         except Exception as e:
-            self.log_manager(f"❗ Error reading server output: {e}\n")
+            self.logger.manager(f"❗ Error reading server output: {e}\n")
 
     def tail_log_file(self, filepath, log_function):
         try:
             if not os.path.exists(filepath):
-                self.log_manager(f"❗ Log file not found: {filepath}\n")
+                self.logger.manager(f"❗ Log file not found: {filepath}\n")
                 return
 
             last_size = 0
@@ -752,11 +752,11 @@ class AzerothManager:
                                     last_size = 0
                                     break  # break inner loop to reopen file
                 except Exception as e:
-                    self.log_manager(f"❗ Error reading log {filepath}: {e}\n")
+                    self.logger.manager(f"❗ Error reading log {filepath}: {e}\n")
                     time.sleep(1)
 
         except Exception as e:
-            self.log_manager(f"❗ General error tailing log file {filepath}: {e}\n")
+            self.logger.manager(f"❗ General error tailing log file {filepath}: {e}\n")
 
     def kill_authserver(self):
         if self.auth_process:
@@ -833,11 +833,11 @@ class AzerothManager:
 
             restart_popup.grab_set()
             self.root.wait_window(restart_popup)
-            self.log_manager(f"🔴 Worldserver will restart in {self.delay_str}...\n")
+            self.logger.manager(f"🔴 Worldserver will restart in {self.delay_str}...\n")
 
     def monitor_worldserver(self):
         exit_code = self.world_process.wait()
-        self.log_manager(f"🔴 Worldserver exited with code: {exit_code}\n")
+        self.logger.manager(f"🔴 Worldserver exited with code: {exit_code}\n")
         self.update_status()
         if exit_code == 2: # restart
             self.logger.manager("🔴 Restarting Worldserver...\n")
@@ -845,7 +845,7 @@ class AzerothManager:
         if exit_code == 1: # crash/error
             self.play_alert()
             timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-            self.log_manager(f"❗ Worldserver crash at {timestamp}.\n")
+            self.logger.manager(f"❗ Worldserver crash at {timestamp}.\n")
             if self.RESTART_WORLDSERVER_ON_CRASH:
                 self.logger.manager("🔴 Restarting Worldserver...\n")
                 self.start_worldserver()
@@ -888,7 +888,7 @@ class AzerothManager:
                     fg="black"
                 )
             except mysql.connector.Error as err:
-                self.log_manager(f"❗ update_online_players: MySQL error: {err}\n")
+                self.logger.manager(f"❗ update_online_players: MySQL error: {err}\n")
         else:
             self.serverstats_onlineplayers_lbl.config(
                     text=f"Online Players: 0",
@@ -925,7 +925,7 @@ class AzerothManager:
                     fg="black"
                 )
             except mysql.connector.Error as err:
-                self.log_manager(f"❗ update_online_gms: MySQL error: {err}\n")
+                self.logger.manager(f"❗ update_online_gms: MySQL error: {err}\n")
         else:
             self.serverstats_onlinegms_lbl.config(
                     text=f"Online GMs: 0",
@@ -958,7 +958,7 @@ class AzerothManager:
                     fg="black"
                 )
             except mysql.connector.Error as err:
-                self.log_manager(f"❗ update_open_tickets: MySQL error: {err}\n")
+                self.logger.manager(f"❗ update_open_tickets: MySQL error: {err}\n")
         else:
             self.serverstats_open_tickets_lbl.config(
                     text=f"Open Tickets: 0",
@@ -1016,7 +1016,7 @@ class AzerothManager:
                 canvas.get_tk_widget().pack(expand=True, fill='both')
 
             except mysql.connector.Error as err:
-                self.log_manager(f"❗ show_faction_pie_chart: MySQL error: {err}\n")
+                self.logger.manager(f"❗ show_faction_pie_chart: MySQL error: {err}\n")
 
         if world_running:
             # Schedule check every 10s
