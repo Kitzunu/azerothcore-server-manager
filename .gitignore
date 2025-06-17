@@ -1,6 +1,13 @@
 # Ignore PyInstaller build folder
 build/
 dist/
+__pycache__/
+
+# Ignore vscode
+.vscode/
 
 # Ignore the spec file
 *.spec
+
+# Ignore the pyc file
+*.pyc
