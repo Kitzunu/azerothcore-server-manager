@@ -345,7 +345,7 @@ class AzerothManager:
         self.ban_username_entry = tk.Entry(ban_frame)
         self.ban_username_entry.grid(row=0, column=1)
 
-        tk.Label(ban_frame, text="Duration (e.g., 1d):").grid(row=1, column=0, sticky="e")
+        tk.Label(ban_frame, text="Duration (1d7h5m):").grid(row=1, column=0, sticky="e")
         self.ban_duration_entry = tk.Entry(ban_frame)
         self.ban_duration_entry.grid(row=1, column=1)
 
@@ -393,13 +393,9 @@ class AzerothManager:
         self.logger.manager("                                  ██║     ██║   ██║██╔══██╗██╔══╝\n")
         self.logger.manager("                                  ╚██████╗╚██████╔╝██║  ██║███████╗\n")
         self.logger.manager("                                   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\n\n")
-        self.logger.manager("     https://github.com/Kitzunu/azerothcore-server-manager/\n\n")
+        self.logger.manager("   https://github.com/Kitzunu/azerothcore-server-manager/\n\n")
         self.logger.manager("❗ Make sure to configure the SETTINGS before running the servers. ❗\n\n")
-        self.logger.manager(f"> Worldserver.exe path:         {self.settings.WORLD_PATH}\n")
-        self.logger.manager(f"> Authserver.exe path:          {self.settings.AUTH_PATH}\n")
-        self.logger.manager(f"> Server.log path:              {self.settings.WORLD_LOG_FILE}\n")
-        self.logger.manager(f"> Auth.log path:                {self.settings.AUTH_LOG_FILE}\n")
-        self.logger.manager(f"> Restart Worldserver on crash: {self.settings.RESTART_WORLDSERVER_ON_CRASH}\n")
+        self.logger.manager(f"➕ Restart Worldserver on crash: {self.settings.RESTART_WORLDSERVER_ON_CRASH}\n")
 
     def start_authserver(self):
         world_running = self.check_process("authserver.exe")
@@ -806,7 +802,7 @@ class AzerothManager:
     def play_alert(self):
         winsound.PlaySound("SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC)
 
-if __name__ == "__main__":#
+if __name__ == "__main__":
     root = tk.Tk()
     app = AzerothManager(root)
     root.protocol("WM_DELETE_WINDOW", lambda: (app.stop_log.set(), root.destroy()))
