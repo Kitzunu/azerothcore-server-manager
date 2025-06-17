@@ -1,7 +1,5 @@
 import tkinter as tk
 
-import tkinter as tk
-
 class Logger:
     def __init__(self, manager_widget: tk.Text, auth_widget: tk.Text, world_widget: tk.Text):
         self._manager_log = manager_widget
