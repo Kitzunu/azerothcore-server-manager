@@ -5,7 +5,6 @@ import subprocess
 import os
 import threading
 import time
-import configparser
 import winsound
 import datetime
 import webbrowser
@@ -14,11 +13,10 @@ import mysql.connector
 from mysql.connector import Error
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
+from config.settings import SettingsManager
 
 # Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
-
-SETTINGS_FILE = "settings.ini"
 
 class AzerothManager:
     def __init__(self, root):
@@ -34,7 +32,7 @@ class AzerothManager:
         icon_path = os.path.join(base_path, "assets", "manager.ico")
         self.root.iconbitmap(icon_path)
 
-        self.config = configparser.ConfigParser()
+        self.settings = SettingsManager()
         self.load_settings()
 
         self.auth_process = None
@@ -50,58 +48,38 @@ class AzerothManager:
         self.test_connect_mysql()
 
     def load_settings(self):
-        if not os.path.exists(SETTINGS_FILE):
-            self.config['Paths'] = {
-                'worldserver': r'D:\build\bin\RelWithDebInfo\worldserver.exe',
-                'authserver': r'D:\build\bin\RelWithDebInfo\authserver.exe',
-                'world_log_file': r'D:\build\bin\RelWithDebInfo\Server.log',
-                'auth_log_file': r'D:\build\bin\RelWithDebInfo\Auth.log',
-            }
-            self.config['General'] = {
-                'restart_worldserver_on_crash': True,
-            }
-            self.config['Database'] = {
-                'database_host': '127.0.0.1',
-                'database_port': '3306',
-                'database_user': 'acore',
-                'database_password': 'acore',
-                'database_world': 'acore_world',
-                'database_characters': 'acore_characters',
-                'database_auth': 'acore_auth',
-            }
-            with open(SETTINGS_FILE, 'w') as configfile:
-                self.config.write(configfile)
-        else:
-            self.config.read(SETTINGS_FILE)
+        s = self.settings  # Short reference
 
-        self.WORLD_PATH = self.config['Paths']['worldserver']
-        self.AUTH_PATH = self.config['Paths']['authserver']
-        self.WORLD_LOG_FILE = self.config['Paths']['world_log_file']
-        self.AUTH_LOG_FILE = self.config['Paths']['auth_log_file']
-        self.RESTART_WORLDSERVER_ON_CRASH = self.config.getboolean('General', 'restart_worldserver_on_crash')
-        self.DATABASE_HOST = self.config['Database']['database_host']
-        self.DATABASE_PORT = self.config['Database']['database_port']
-        self.DATABASE_USER = self.config['Database']['database_user']
-        self.DATABASE_PASSWORD = self.config['Database']['database_password']
-        self.DATABASE_WORLD = self.config['Database']['database_world']
-        self.DATABASE_CHARACTERS = self.config['Database']['database_characters']
-        self.DATABASE_AUTH = self.config['Database']['database_auth']
+        self.WORLD_PATH = s.get('Paths', 'worldserver')
+        self.AUTH_PATH = s.get('Paths', 'authserver')
+        self.WORLD_LOG_FILE = s.get('Paths', 'world_log_file')
+        self.AUTH_LOG_FILE = s.get('Paths', 'auth_log_file')
+        self.RESTART_WORLDSERVER_ON_CRASH = s.getboolean('General', 'restart_worldserver_on_crash')
+        self.DATABASE_HOST = s.get('Database', 'database_host')
+        self.DATABASE_PORT = s.get('Database', 'database_port')
+        self.DATABASE_USER = s.get('Database', 'database_user')
+        self.DATABASE_PASSWORD = s.get('Database', 'database_password')
+        self.DATABASE_WORLD = s.get('Database', 'database_world')
+        self.DATABASE_CHARACTERS = s.get('Database', 'database_characters')
+        self.DATABASE_AUTH = s.get('Database', 'database_auth')
 
     def save_settings(self):
-        self.config['Paths']['worldserver'] = self.WORLD_PATH
-        self.config['Paths']['authserver'] = self.AUTH_PATH
-        self.config['Paths']['world_log_file'] = self.WORLD_LOG_FILE
-        self.config['Paths']['auth_log_file'] = self.AUTH_LOG_FILE
-        self.config['General']['restart_worldserver_on_crash'] = self.RESTART_WORLDSERVER_ON_CRASH
-        self.config['Database']['database_host'] = self.DATABASE_HOST
-        self.config['Database']['database_port'] = self.DATABASE_PORT
-        self.config['Database']['database_user'] = self.DATABASE_USER
-        self.config['Database']['database_password'] = self.DATABASE_PASSWORD
-        self.config['Database']['database_world'] = self.DATABASE_WORLD
-        self.config['Database']['database_characters'] = self.DATABASE_CHARACTERS
-        self.config['Database']['database_auth'] = self.DATABASE_AUTH
-        with open(SETTINGS_FILE, 'w') as configfile:
-            self.config.write(configfile)
+        s = self.settings  # Short reference
+
+        s.set('Paths', 'worldserver', self.WORLD_PATH)
+        s.set('Paths', 'authserver', self.AUTH_PATH)
+        s.set('Paths', 'world_log_file', self.WORLD_LOG_FILE)
+        s.set('Paths', 'auth_log_file', self.AUTH_LOG_FILE)
+        s.set('General', 'restart_worldserver_on_crash', int(self.RESTART_WORLDSERVER_ON_CRASH))
+        s.set('Database', 'database_host', self.DATABASE_HOST)
+        s.set('Database', 'database_port', self.DATABASE_PORT)
+        s.set('Database', 'database_user', self.DATABASE_USER)
+        s.set('Database', 'database_password', self.DATABASE_PASSWORD)
+        s.set('Database', 'database_world', self.DATABASE_WORLD)
+        s.set('Database', 'database_characters', self.DATABASE_CHARACTERS)
+        s.set('Database', 'database_auth', self.DATABASE_AUTH)
+
+        s.save()
 
     def test_connect_mysql(self):
         try:
@@ -548,6 +526,9 @@ class AzerothManager:
         github_link.bind("<Button-1>", open_github)
 
     def open_settings_window(self):
+        self.settings.load()
+        s = self.settings
+
         settings_win = tk.Toplevel(self.root)
         settings_win.title("Settings")
 
@@ -568,74 +549,81 @@ class AzerothManager:
 
         tk.Label(settings_win, text="Worldserver.exe path:", anchor="w", justify="left").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         world_entry = tk.Entry(settings_win, width=50)
-        world_entry.insert(0, self.WORLD_PATH)
+        world_entry.insert(0, s.get('Paths', 'worldserver'))
         world_entry.grid(row=0, column=1, padx=5, pady=5)
         tk.Button(settings_win, text="Browse", command=lambda: browse(world_entry)).grid(row=0, column=2, padx=5, pady=5)
 
         tk.Label(settings_win, text="Authserver.exe path:", anchor="w", justify="left").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         auth_entry = tk.Entry(settings_win, width=50)
-        auth_entry.insert(0, self.AUTH_PATH)
+        auth_entry.insert(0, s.get('Paths', 'authserver'))
         auth_entry.grid(row=1, column=1, padx=5, pady=5)
         tk.Button(settings_win, text="Browse", command=lambda: browse(auth_entry)).grid(row=1, column=2, padx=5, pady=5)
 
         tk.Label(settings_win, text="Server.log path:", anchor="w", justify="left").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         world_log_entry = tk.Entry(settings_win, width=50)
-        world_log_entry.insert(0, self.WORLD_LOG_FILE)
+        world_log_entry.insert(0, s.get('Paths', 'world_log_file'))
         world_log_entry.grid(row=2, column=1, padx=5, pady=5)
         tk.Button(settings_win, text="Browse", command=lambda: browse(world_log_entry)).grid(row=2, column=2, padx=5, pady=5)
 
         tk.Label(settings_win, text="Auth.log path:", anchor="w", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         auth_log_entry = tk.Entry(settings_win, width=50)
-        auth_log_entry.insert(0, self.AUTH_LOG_FILE)
+        auth_log_entry.insert(0, s.get('Paths', 'auth_log_file'))
         auth_log_entry.grid(row=3, column=1, padx=5, pady=5)
         tk.Button(settings_win, text="Browse", command=lambda: browse(auth_log_entry)).grid(row=3, column=2, padx=5, pady=5)
 
         tk.Label(settings_win, text="Restart Worldserver on crash: (1/0)", anchor="w", justify="left").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.RESTART_WORLDSERVER_ON_CRASH)
+        restart_var.insert(0, s.get('General', 'restart_worldserver_on_crash'))
         restart_var.grid(row=4, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database Host:", anchor="w", justify="left").grid(row=5, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_HOST)
-        restart_var.grid(row=5, column=1, padx=5, pady=5)
+        database_host = tk.Entry(settings_win, width=50)
+        database_host.insert(0, s.get('Database', 'database_host'))
+        database_host.grid(row=5, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database Port:", anchor="w", justify="left").grid(row=6, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_PORT)
-        restart_var.grid(row=6, column=1, padx=5, pady=5)
+        database_port = tk.Entry(settings_win, width=50)
+        database_port.insert(0, s.get('Database', 'database_port'))
+        database_port.grid(row=6, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database User:", anchor="w", justify="left").grid(row=7, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_USER)
-        restart_var.grid(row=7, column=1, padx=5, pady=5)
+        database_user = tk.Entry(settings_win, width=50)
+        database_user.insert(0, s.get('Database', 'database_user'))
+        database_user.grid(row=7, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database Password:", anchor="w", justify="left").grid(row=8, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_PASSWORD)
-        restart_var.grid(row=8, column=1, padx=5, pady=5)
+        database_password = tk.Entry(settings_win, width=50)
+        database_password.insert(0, s.get('Database', 'database_password'))
+        database_password.grid(row=8, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database World:", anchor="w", justify="left").grid(row=9, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_WORLD)
-        restart_var.grid(row=9, column=1, padx=5, pady=5)
+        database_world = tk.Entry(settings_win, width=50)
+        database_world.insert(0, s.get('Database', 'database_world'))
+        database_world.grid(row=9, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database Characters:", anchor="w", justify="left").grid(row=10, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_CHARACTERS)
-        restart_var.grid(row=10, column=1, padx=5, pady=5)
+        database_characters = tk.Entry(settings_win, width=50)
+        database_characters.insert(0, s.get('Database', 'database_characters'))
+        database_characters.grid(row=10, column=1, padx=5, pady=5)
 
         tk.Label(settings_win, text="Database Auth:", anchor="w", justify="left").grid(row=11, column=0, padx=5, pady=5, sticky="w")
-        restart_var = tk.Entry(settings_win, width=50)
-        restart_var.insert(0, self.DATABASE_AUTH)
-        restart_var.grid(row=11, column=1, padx=5, pady=5)
+        database_auth = tk.Entry(settings_win, width=50)
+        database_auth.insert(0, s.get('Database', 'database_auth'))
+        database_auth.grid(row=11, column=1, padx=5, pady=5)
 
         def save():
             self.WORLD_PATH = world_entry.get()
             self.AUTH_PATH = auth_entry.get()
             self.WORLD_LOG_FILE = world_log_entry.get()
             self.AUTH_LOG_FILE = auth_log_entry.get()
-            self.RESTART_WORLDSERVER_ON_CRASH = restart_var.get()
+            self.RESTART_WORLDSERVER_ON_CRASH = int(restart_var.get())
+            self.DATABASE_HOST = database_host.get()
+            self.DATABASE_PORT = database_port.get()
+            self.DATABASE_USER = database_user.get()
+            self.DATABASE_PASSWORD = database_password.get()
+            self.DATABASE_WORLD = database_world.get()
+            self.DATABASE_CHARACTERS = database_characters.get()
+            self.DATABASE_AUTH = database_auth.get()
             self.save_settings()
             settings_win.destroy()
             self.log_manager("🔴 Settings saved.\n")
@@ -865,7 +853,7 @@ class AzerothManager:
             self.play_alert()
             timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
             self.log_manager(f"❗ Worldserver crash at {timestamp}.\n")
-            if self.RESTART_WORLDSERVER_ON_CRASH == 1:
+            if self.RESTART_WORLDSERVER_ON_CRASH:
                 self.log_manager("🔴 Restarting Worldserver...\n")
                 self.start_worldserver()
 
