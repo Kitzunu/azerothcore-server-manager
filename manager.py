@@ -14,6 +14,7 @@ from mysql.connector import Error
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from config.settings import SettingsManager
+from core.logger import Logger
 
 # Compile
 # python -m PyInstaller --onefile --windowed --icon=assets/manager.ico --add-data "assets;assets" manager.py
@@ -91,7 +92,7 @@ class AzerothManager:
                 database = self.DATABASE_CHARACTERS,
             )
             if connection.is_connected():
-                self.log_manager("🔴 MySQL test connection successful for DB: Characters.\n")
+                self.logger.manager("🔴 MySQL test connection successful for DB: Characters.\n")
                 return connection
         except Error as e:
             self.log_manager(f"❗ MySQL connection failed: {e}\n")
@@ -159,11 +160,11 @@ class AzerothManager:
             try:
                 self.world_process.stdin.write((command + '\n').encode())
                 self.world_process.stdin.flush()
-                self.log_world(f"[Input] {command}\n")
+                log_world(self.world_log_output, f"[Input] {command}\n")
             except Exception as e:
                 self.log_manager(f"❗ Failed to send command: {e}\n")
         else:
-            self.log_manager("❗ worldserver is not running.\n")
+            self.logger.manager("❗ worldserver is not running.\n")
 
     def create_account(self):
         username = self.username_entry.get()
@@ -171,7 +172,7 @@ class AzerothManager:
         gmlevel = self.gmlevel_entry.get()
 
         if not username or not password:
-            self.log_manager("⚠️ Username and password cannot be empty.\n")
+            self.logger.manager("⚠️ Username and password cannot be empty.\n")
             return
 
         command = f"account create {username} {password}"
@@ -187,7 +188,7 @@ class AzerothManager:
         reason = self.ban_reason_entry.get()
 
         if not username or not duration or not reason:
-            self.log_manager("⚠️ Fill in all ban fields.\n")
+            self.logger.manager("⚠️ Fill in all ban fields.\n")
             return
 
         command = f'ban account {username} {duration} "{reason}"'
@@ -197,7 +198,7 @@ class AzerothManager:
         username = self.ban_username_entry.get()
 
         if not username:
-            self.log_manager("⚠️ Username required to unban.\n")
+            self.logger.manager("⚠️ Username required to unban.\n")
             return
 
         command = f'unban account {username}'
@@ -348,6 +349,13 @@ class AzerothManager:
         self.world_send_button.pack(side="left", padx=(5, 0))
         self.world_input.bind("<Return>", lambda event: self.send_world_input())
 
+        # Create loggers
+        self.logger = Logger(
+            manager_widget=self.manager_log,
+            auth_widget=self.auth_log,
+            world_widget=self.world_log_output
+        )
+
         # Statistics tab 
         self.stats_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.stats_frame, text="Server Stats")
@@ -417,46 +425,31 @@ class AzerothManager:
                 self.world_log_output.see("end")
                 self.world_input.delete(0, 'end')
             except Exception as e:
-                self.log_world(f"❗ Failed to send command: {e}\n")
+                self.logger.world(f"❗ Failed to send command: {e}\n")
         else:
-            self.log_world(f"❗ Failed to send command: {e}\nWorldserver is not running or stdin is unavailable.\n")
+            self.logger.world(f"❗ Failed to send command: {e}\nWorldserver is not running or stdin is unavailable.\n")
 
     def header(self):
-        self.log_manager("\n")
-        self.log_manager("   █████╗ ███████╗███████╗██████╗  ██████╗ ████████╗██╗  ██╗\n")
-        self.log_manager("  ██╔══██╗╚══███╔╝██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝██║  ██║\n")
-        self.log_manager("  ███████║  ███╔╝ █████╗  ██████╔╝██║   ██║   ██║   ███████║\n")
-        self.log_manager("  ██╔══██║ ███╔╝  ██╔══╝  ██╔══██╗██║   ██║   ██║   ██╔══██║\n")
-        self.log_manager("  ██║  ██║███████╗███████╗██║  ██║╚██████╔╝   ██║   ██║  ██║\n")
-        self.log_manager("  ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝\n")
-        self.log_manager("                                   ██████╗ ██████╗ ██████╗ ███████╗\n")
-        self.log_manager("                                  ██╔════╝██╔═══██╗██╔══██╗██╔════╝\n")
-        self.log_manager("                                  ██║     ██║   ██║██████╔╝█████╗\n")
-        self.log_manager("                                  ██║     ██║   ██║██╔══██╗██╔══╝\n")
-        self.log_manager("                                  ╚██████╗╚██████╔╝██║  ██║███████╗\n")
-        self.log_manager("                                   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\n\n")
-        self.log_manager("     https://github.com/Kitzunu/azerothcore-server-manager/\n\n")
-        self.log_manager("❗ Make sure to configure the SETTINGS before running the servers. ❗\n\n")
-        self.log_manager(f"> Worldserver.exe path:         {self.WORLD_PATH}\n")
-        self.log_manager(f"> Authserver.exe path:          {self.AUTH_PATH}\n")
-        self.log_manager(f"> Server.log path:              {self.WORLD_LOG_FILE}\n")
-        self.log_manager(f"> Auth.log path:                {self.AUTH_LOG_FILE}\n")
-        self.log_manager(f"> Restart Worldserver on crash: {self.RESTART_WORLDSERVER_ON_CRASH}\n")
-
-    def log_manager(self, text):
-        self._append_text(self.manager_log, text)
-
-    def log_auth(self, text):
-        self._append_text(self.auth_log, text)
-
-    def log_world(self, text):
-        self._append_text(self.world_log_output, text)
-
-    def _append_text(self, widget, text):
-        widget.config(state='normal')
-        widget.insert(tk.END, text)
-        widget.config(state='disabled')
-        widget.see(tk.END)
+        self.logger.manager("\n")
+        self.logger.manager("   █████╗ ███████╗███████╗██████╗  ██████╗ ████████╗██╗  ██╗\n")
+        self.logger.manager("  ██╔══██╗╚══███╔╝██╔════╝██╔══██╗██╔═══██╗╚══██╔══╝██║  ██║\n")
+        self.logger.manager("  ███████║  ███╔╝ █████╗  ██████╔╝██║   ██║   ██║   ███████║\n")
+        self.logger.manager("  ██╔══██║ ███╔╝  ██╔══╝  ██╔══██╗██║   ██║   ██║   ██╔══██║\n")
+        self.logger.manager("  ██║  ██║███████╗███████╗██║  ██║╚██████╔╝   ██║   ██║  ██║\n")
+        self.logger.manager("  ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝\n")
+        self.logger.manager("                                   ██████╗ ██████╗ ██████╗ ███████╗\n")
+        self.logger.manager("                                  ██╔════╝██╔═══██╗██╔══██╗██╔════╝\n")
+        self.logger.manager("                                  ██║     ██║   ██║██████╔╝█████╗\n")
+        self.logger.manager("                                  ██║     ██║   ██║██╔══██╗██╔══╝\n")
+        self.logger.manager("                                  ╚██████╗╚██████╔╝██║  ██║███████╗\n")
+        self.logger.manager("                                   ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝\n\n")
+        self.logger.manager("     https://github.com/Kitzunu/azerothcore-server-manager/\n\n")
+        self.logger.manager("❗ Make sure to configure the SETTINGS before running the servers. ❗\n\n")
+        self.logger.manager(f"> Worldserver.exe path:         {self.WORLD_PATH}\n")
+        self.logger.manager(f"> Authserver.exe path:          {self.AUTH_PATH}\n")
+        self.logger.manager(f"> Server.log path:              {self.WORLD_LOG_FILE}\n")
+        self.logger.manager(f"> Auth.log path:                {self.AUTH_LOG_FILE}\n")
+        self.logger.manager(f"> Restart Worldserver on crash: {self.RESTART_WORLDSERVER_ON_CRASH}\n")
 
     def open_info_window(self):
         info_win = tk.Toplevel(self.root)
@@ -626,14 +619,14 @@ class AzerothManager:
             self.DATABASE_AUTH = database_auth.get()
             self.save_settings()
             settings_win.destroy()
-            self.log_manager("🔴 Settings saved.\n")
+            self.logger.manager("🔴 Settings saved.\n")
 
         tk.Button(settings_win, text="Save", command=save).grid(row=12, column=1, pady=10)
 
     def start_authserver(self):
         world_running = self.check_process("authserver.exe")
         if world_running:
-            self.log_manager("❗ Authserver are already running.\n")
+            self.logger.manager("❗ Authserver are already running.\n")
             return
 
         try:
@@ -650,25 +643,25 @@ class AzerothManager:
             # Start threads to read authserver stdout/stderr
             threading.Thread(
                 target=self.read_stream,
-                args=(self.auth_process.stdout, self.log_auth),
+                args=(self.auth_process.stdout, self.logger.auth),
                 daemon=True
             ).start()
 
             threading.Thread(
                 target=self.read_stream,
-                args=(self.auth_process.stderr, self.log_auth),
+                args=(self.auth_process.stderr, self.logger.auth),
                 daemon=True
             ).start()
 
             self.auth_log_thread = threading.Thread(
                 target=self.tail_log_file,
-                args=(self.AUTH_LOG_FILE, self.log_auth),
+                args=(self.AUTH_LOG_FILE, self.logger.auth),
                 daemon=True
             )
             self.auth_log_thread.start()
 
             self.update_status()
-            self.log_manager("🔴 Authserver started.\n")
+            self.logger.manager("🔴 Authserver started.\n")
 
         except Exception as e:
             self.log_manager(f"❗ Error starting Authserver: {e}\n")
@@ -676,7 +669,7 @@ class AzerothManager:
     def start_worldserver(self):
         world_running = self.check_process("worldserver.exe")
         if world_running:
-            self.log_manager("❗ Worldserver are already running.\n")
+            self.logger.manager("❗ Worldserver are already running.\n")
             return
 
         try:
@@ -694,20 +687,20 @@ class AzerothManager:
             # Start threads to read worldserver stdout/stderr
             threading.Thread(
                 target=self.read_stream,
-                args=(self.world_process.stdout, self.log_world),
+                args=(self.world_process.stdout, self.logger.world),
                 daemon=True
             ).start()
 
             threading.Thread(
                 target=self.read_stream,
-                args=(self.world_process.stderr, self.log_world),
+                args=(self.world_process.stderr, self.logger.world),
                 daemon=True
             ).start()
 
             self.stop_log.clear()
             self.world_log_thread = threading.Thread(
                 target=self.tail_log_file,
-                args=(self.WORLD_LOG_FILE, self.log_world),
+                args=(self.WORLD_LOG_FILE, self.logger.world),
                 daemon=True
             )
             self.world_log_thread.start()
@@ -720,7 +713,7 @@ class AzerothManager:
             self.update_online_gms()
             self.update_open_tickets()
             self.show_faction_pie_chart()
-            self.log_manager("🔴 Worldserver started.\n")
+            self.logger.manager("🔴 Worldserver started.\n")
 
         except Exception as e:
             self.log_manager(f"❗ Error starting Worldserver: {e}\n")
@@ -770,7 +763,7 @@ class AzerothManager:
             self.auth_process.terminate()
             self.auth_process = None
         
-        self.log_manager("🔴 Authserver killed.\n")
+        self.logger.manager("🔴 Authserver killed.\n")
         self.update_status()
 
     def stop_worldserver(self):
@@ -781,7 +774,7 @@ class AzerothManager:
             self.world_process.stdin.flush()
             self.world_process = None
 
-        self.log_manager("🔴 Worldserver stopped.\n")
+        self.logger.manager("🔴 Worldserver stopped.\n")
         self.update_status()
 
     def kill_workdserver(self):
@@ -789,7 +782,7 @@ class AzerothManager:
             self.world_process.terminate()
             self.world_process = None
         
-        self.log_manager("🔴 Worldserver killed.\n")
+        self.logger.manager("🔴 Worldserver killed.\n")
         self.update_status()
 
     def restart_worldserver(self):
@@ -847,14 +840,14 @@ class AzerothManager:
         self.log_manager(f"🔴 Worldserver exited with code: {exit_code}\n")
         self.update_status()
         if exit_code == 2: # restart
-            self.log_manager("🔴 Restarting Worldserver...\n")
+            self.logger.manager("🔴 Restarting Worldserver...\n")
             self.start_worldserver()
         if exit_code == 1: # crash/error
             self.play_alert()
             timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
             self.log_manager(f"❗ Worldserver crash at {timestamp}.\n")
             if self.RESTART_WORLDSERVER_ON_CRASH:
-                self.log_manager("🔴 Restarting Worldserver...\n")
+                self.logger.manager("🔴 Restarting Worldserver...\n")
                 self.start_worldserver()
 
     def update_status(self):
