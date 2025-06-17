@@ -160,7 +160,7 @@ class AzerothManager:
             try:
                 self.world_process.stdin.write((command + '\n').encode())
                 self.world_process.stdin.flush()
-                log_world(self.world_log_output, f"[Input] {command}\n")
+                self.logger.world(f"[Input] {command}\n")
             except Exception as e:
                 self.logger.manager(f"❗ Failed to send command: {e}\n")
         else:
